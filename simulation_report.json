@@ -1,0 +1,68 @@
+[
+    {
+        "flow2_payload_bytes": 3200,
+        "flow1_delivered": 100,
+        "flow1_avg_latency_us": 345.8399999998833,
+        "flow1_max_latency_us": 345.8400000000838,
+        "flow1_min_latency_us": 345.839999999851,
+        "flow2_delivered": 500,
+        "flow2_avg_latency_us": 835.74400000028,
+        "flow2_max_latency_us": 973.2800000003772,
+        "success": true
+    },
+    {
+        "flow2_payload_bytes": 6400,
+        "flow1_delivered": 100,
+        "flow1_avg_latency_us": 345.8399999998833,
+        "flow1_max_latency_us": 345.8400000000838,
+        "flow1_min_latency_us": 345.839999999851,
+        "flow2_delivered": 500,
+        "flow2_avg_latency_us": 1621.9840000004742,
+        "flow2_max_latency_us": 1759.5200000006007,
+        "success": true
+    },
+    {
+        "flow2_payload_bytes": 12800,
+        "flow1_delivered": 100,
+        "flow1_avg_latency_us": 345.8399999998833,
+        "flow1_max_latency_us": 345.8400000000838,
+        "flow1_min_latency_us": 345.839999999851,
+        "flow2_delivered": 500,
+        "flow2_avg_latency_us": 3194.4640000008626,
+        "flow2_max_latency_us": 3332.0000000010477,
+        "success": true
+    },
+    {
+        "flow2_payload_bytes": 25600,
+        "flow1_delivered": 100,
+        "flow1_avg_latency_us": 345.8399999998833,
+        "flow1_max_latency_us": 345.8400000000838,
+        "flow1_min_latency_us": 345.839999999851,
+        "flow2_delivered": 500,
+        "flow2_avg_latency_us": 6348.544000001737,
+        "flow2_max_latency_us": 6486.080000002054,
+        "success": true
+    },
+    {
+        "flow2_payload_bytes": 51200,
+        "flow1_delivered": 100,
+        "flow1_avg_latency_us": 345.8399999998833,
+        "flow1_max_latency_us": 345.8400000000838,
+        "flow1_min_latency_us": 345.839999999851,
+        "flow2_delivered": 499,
+        "flow2_avg_latency_us": 12714.615791586004,
+        "flow2_max_latency_us": 12950.720000000903,
+        "success": true
+    },
+    {
+        "flow2_payload_bytes": 102400,
+        "flow1_delivered": 100,
+        "flow1_avg_latency_us": 345.8399999998833,
+        "flow1_max_latency_us": 345.8400000000838,
+        "flow1_min_latency_us": 345.839999999851,
+        "flow2_delivered": 498,
+        "flow2_avg_latency_us": 25388.52112450307,
+        "flow2_max_latency_us": 25589.9200000047,
+        "success": true
+    }
+]

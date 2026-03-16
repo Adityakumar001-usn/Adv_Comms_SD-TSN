@@ -28,6 +28,12 @@ def run_simulation_tests():
     hyper_period = gcl_gen.calculate_hyper_period(base_flows)
     gcl_config = gcl_gen.generate_gcl(schedule, t_trans, hyper_period, flow1.period)
 
+    # Export GCL configuration to XML for documentation/YANG representation
+    l2_tables = routing.generate_l2_lookup_tables(base_flows)
+    xml_output = gcl_gen.generate_xml_configuration(l2_tables, gcl_config, hyper_period)
+    with open("network_config.xml", "w") as f:
+        f.write(xml_output)
+
     print("="*60)
     print("SD-TSN In-Vehicle Network Simulation Report")
     print("="*60)
