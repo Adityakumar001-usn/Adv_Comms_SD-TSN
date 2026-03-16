@@ -50,6 +50,15 @@ The backend engine validates the determinism of the network using four key compo
 
 ---
 
+## Output Artifacts
+
+Running the core simulation generates two primary artifacts automatically saved to the repository root:
+
+*   **`network_config.xml`**: A fully structured XML file mimicking a YANG data model. It contains the exact Layer 2 routing lookup tables and the Time-Aware Shaper (TAS) Gate Control List (GCL) transmission schedules for every egress port on every switch and gateway in the network.
+*   **`simulation_report.json`**: A detailed data dump validating the determinism of the network. It records the payload sizes, the number of delivered packets, and the precise minimum, maximum, and average latencies for both Priority 7 and Priority 0 flows across the test suite.
+
+---
+
 ## Interactive Presentation Dashboard (Phase 2)
 
 An interactive, web-based dashboard built with Streamlit (`app.py`) serves as the primary presentation layer for the simulation results. It dynamically visualizes the determinism of the network.
