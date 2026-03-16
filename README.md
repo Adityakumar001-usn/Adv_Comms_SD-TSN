@@ -1,77 +1,92 @@
 # SD-TSN In-Vehicle Network Simulation
 
-This project builds a real-time software simulation of a Software-Defined Time-Sensitive Network (SD-TSN) for in-vehicle networks. It implements a Centralized Network Configuration (CNC) controller that calculates routing and Time-Aware Shaper (TAS) schedules based on IEEE 802.1Qbv, and validates the deterministic transmission of mission-critical automotive traffic via a discrete-event simulation.
+This project builds a real-time software simulation of a **Software-Defined Time-Sensitive Network (SD-TSN)** designed for modern, mission-critical in-vehicle zonal architectures.
 
-## Project Context
-Modern automotive architectures require strict, deterministic latency for time-sensitive application data (e.g., braking, steering) while accommodating best-effort background traffic (e.g., infotainment). This simulation models a central gateway and a ring of zonal switches. By computing an Integer Linear Programming (ILP) schedule and deploying strict Gate Control Lists (GCL), the network ensures that critical traffic (Priority 7) completely bypasses the interference of large background flows (Priority 0).
-
-## Tech Stack
-*   **Language:** Python 3.10+
-*   **Network Topology & Routing:** `networkx`
-*   **ILP Solver:** `PuLP` (Used to enforce strict transmission offsets and guard bands)
-*   **Data Plane Simulation:** `SimPy` (Discrete-event simulation)
-
-## Getting Started
-
-### Prerequisites
-Install the required Python packages:
-```bash
-python3 -m pip install networkx pulp simpy
-```
-
-### Running the Simulation
-To execute the end-to-end simulation test across varying payload sizes:
-```bash
-python3 run_simulation.py
-```
-This script will:
-1. Build the topology and L2 routing tables.
-2. Calculate the optimal ILP schedule for the time-sensitive flow.
-3. Generate the XML GCL configurations mimicking a YANG schema.
-4. Run 5,000ms simulations (simulating 100 consecutive transmissions of the critical flow) under varying background interference loads (3,200 up to 102,400 Bytes).
-5. Output the results to the console and save a detailed JSON report to `simulation_report.json`.
+It implements a Centralized Network Configuration (CNC) controller that calculates routing and Time-Aware Shaper (TAS) schedules (IEEE 802.1Qbv), and uses a discrete-event simulation to validate the strictly deterministic transmission of automotive traffic.
 
 ---
 
-## Architectural Details & Modules
+## Project Context and Goal
 
-### 1. Topology & Data Models (`models.py` & `cuc.py`)
-The physical network topology is modeled as a directed graph featuring bidirectional 100 Mbps links.
-*   **Endpoints:** E1, E2, E3
-*   **Switches:** SW1, SW2, SW3, SW4 (Forming a ring around the Gateway)
-*   **Gateway:** GW
-*   **Control Plane:** PC (Used for configuration deployment, not involved in data flows).
+Modern automotive architectures require a mix of best-effort background traffic (e.g., infotainment, diagnostics) and hard-real-time mission-critical data (e.g., LiDAR, steering control). This project simulates an SD-TSN environment where a mission-critical flow maintains a strict **<= 500µs** end-to-end latency boundary, completely unaffected by massive bursts of lower-priority background interference.
 
-A **Mock Centralized User Configuration (CUC)** generates two specific test flows:
-*   **Flow 1 (Time-Sensitive):** Originates at E1, destined for E3. Priority 7. Period: 50ms ($50,000 \mu s$). Payload: 1024 Bytes. Max Latency: $500 \mu s$.
-*   **Flow 2 (Interference):** Originates at E2, destined for E3. Priority 0 (Best-Effort). Period: 10ms ($10,000 \mu s$). Payload varies from 3,200 Bytes up to massive 102,400 Bytes.
+### Tech Stack & Environment
 
-### 2. CNC Routing & L2 Tables (`routing.py`)
-The Centralized Network Configuration (CNC) controller calculates the shortest L2 paths across the directed graph.
-It auto-generates sequential dummy MAC addresses (e.g., `00:00:00:00:00:03` for E3) and integer port mappings. Finally, it constructs Layer 2 Lookup Tables for every switch mapping destination MACs and VLAN IDs (representing priority) to specific egress ports.
+*   **Language:** Python 3.10+
+*   **Network Topology:** `networkx`
+*   **ILP Solver:** `PuLP` (Provides seamless automated TAS schedule execution)
+*   **Data Plane Simulation:** `SimPy` (Discrete-event network simulation)
+*   **Interactive Dashboard:** `Streamlit`, `Plotly`, `pandas`
 
-### 3. CNC ILP Scheduler (`scheduler.py`)
-To ensure deterministic latency for Flow 1, the `PuLP` library defines a rigorous mathematical Integer Linear Programming (ILP) model.
-*   **Objective:** Minimize end-to-end latency.
-*   **Constraints:**
-    *   Strict causality tracking processing delays ($d_{proc} = 2 \mu s$).
-    *   Link transmission times based on 100 Mbps Ethernet speeds.
-    *   Pre-allocation of compensation values ($C = 1 \mu s$) to mitigate real-world jitter.
-    *   Strict overall maximum latency of $\le 500 \mu s$.
-*   **Result:** The solver calculates a precise transmission offset for every hop. The anticipated end-to-end latency is explicitly solved at **$345.84 \mu s$**.
+---
 
-### 4. Gate Control List (GCL) Generation (`gcl.py`)
-Based on the ILP offsets, this module translates the mathematical schedules into actionable Gate Control Lists (IEEE 802.1Qbv).
-*   Calculates the network hyper-period ($50,000 \mu s$).
-*   Calculates microsecond-accurate gate triggers for Priority 7 and Priority 0.
-*   **Guard Band:** Injects a critical $121.76 \mu s$ Guard Band immediately prior to the Priority 7 transmission window. During this Guard Band, Priority 0 gates are explicitly closed to prevent interference from in-flight best-effort frames.
-*   Outputs the full schedule into an **XML file (`network_config.xml`)** structurally mimicking the YANG standard.
+## Core Simulation Architecture (Phase 1)
 
-### 5. SimPy Discrete-Event Simulation (`simulator.py`)
-To validate the ILP schedule, a highly granular discrete-event simulator is built using `SimPy`.
-*   **Strict GCL Enforcement:** Switches implement egress ports with dedicated priority queues (`simpy.Store`) and a prioritized physical transmitter (`simpy.PriorityResource`).
-*   **Preemption & Fragmentation:** To handle massive Flow 2 interference payloads (up to 102,400 Bytes) without violating IEEE 802.1Qbv, the simulator performs realistic MTU fragmentation (1,500 Bytes). Priority 0 frames only transmit if they fit within the remaining open gate window. Otherwise, they release the link, allowing the Priority 7 traffic to preempt the massive background streams perfectly on time.
+The backend engine validates the determinism of the network using four key components:
 
-### Conclusion & Success Criteria
-Executing `run_simulation.py` demonstrates that regardless of whether the background interference payload is 3,200 Bytes or 102,400 Bytes, the Time-Sensitive Flow 1 packets bypass the queues perfectly according to the GCL schedule.
-The logged end-to-end latency remains locked at exactly **$345.84 \mu s$**, successfully meeting the strict $\le 500 \mu s$ mission-critical constraint and proving the determinism of the SD-TSN architecture.
+### 1. Data Models & Topology (`models.py`, `cuc.py`)
+*   **Topology:** A directional graph representing a zonal automotive architecture featuring Endpoints (E1, E2, E3), Switches (SW1, SW2, SW3, SW4), and a Gateway (GW). All physical links operate at 100 Mbps.
+*   **Flow Configuration (CUC):** A mock Centralized User Configuration module generates two core test flows:
+    *   **Flow 1 (Time-Sensitive):** E1 -> SW1 -> SW3 -> GW -> E3. Priority 7, 50ms period, 1024 Byte payload, strict 500µs max latency constraint.
+    *   **Flow 2 (Interference):** E2 -> SW2 -> SW4 -> GW -> E3. Priority 0, 10ms period, variable payload (3,200 Bytes up to 102,400 Bytes).
+
+### 2. CNC Routing & ILP Scheduler (`routing.py`, `scheduler.py`)
+*   **Routing:** Automatically calculates the shortest-path critical path for all generated flows.
+*   **TAS Scheduling (PuLP):** An Integer Linear Programming (ILP) model calculates precision transmission offsets for every switch egress port. The solver strictly enforces:
+    *   **Transmission Start Constraints:** Flows must transmit within their required periods.
+    *   **Flow Isolation Constraints:** Prevents simultaneous egress port buffer occupation.
+    *   **Link Resource Constraints:** Ensures no time slots on shared links overlap. To protect Flow 1 from MTU-sized (1500B) fragments of Flow 2, the scheduler dynamically calculates a **121.76 µs Guard Band**.
+    *   **Latency Constraints:** Hard limits ensuring Flow 1 never exceeds 500µs.
+
+### 3. Gate Control List (GCL) Generation (`gcl.py`)
+*   Calculates the network-wide hyper-period (50,000 µs based on the LCM of the flows).
+*   Generates exact open/close timings for Priority 7 and Priority 0 queues across all switches.
+*   Outputs the finalized switch schedules to a structured XML (`network_config.xml`) mimicking a YANG model.
+
+### 4. SimPy Discrete-Event Simulation (`simulator.py`, `run_simulation.py`)
+*   A custom SimPy simulation modeling the physical 100 Mbps links, switch forwarding delays, and strict Priority queuing (enforcing the calculated GCL timings).
+*   Runs automated test suites featuring 100 consecutive transmissions of Flow 1 against escalating Flow 2 payloads.
+*   **Validation:** The simulation proves the architecture's determinism. Flow 1 maintains a strict, unwavering latency of **exactly 345.84 µs** (0.00 µs jitter) regardless of whether Flow 2 transmits 3.2KB or 102.4KB of interference. Outputs results to `simulation_report.json`.
+
+---
+
+## Interactive Presentation Dashboard (Phase 2)
+
+An interactive, web-based dashboard built with Streamlit (`app.py`) serves as the primary presentation layer for the simulation results. It dynamically visualizes the determinism of the network.
+
+### Dashboard Features (`app.py`)
+
+*   **Interactive Topology:** A custom NetworkX/Plotly graph displaying the zonal architecture, highlighting the critical path (Red) and interference path (Amber).
+*   **Live Simulation Execution:** A "▶️ Run Live Simulation" button simulates the background interference scaling (3.2KB to 102.4KB), triggering real-time UI updates via `time.sleep()`.
+*   **Dynamic Metrics:** `st.metric` cards cleanly display the unwavering 345.84 µs / 0.00 µs jitter latency for Flow 1 alongside the escalating latency estimation for Flow 2.
+*   **Animated Results Chart:** A dual-axis Plotly line graph animates step-by-step as the simulation progresses.
+*   **GCL Schedule Gantt Chart:** A pre-computed static Plotly Gantt chart visualizing the switch egress schedule, including explicit hover text annotations for the 121.76 µs Guard Band protecting the Priority 7 queue.
+*   **Simulated Terminal Logs:** A code-formatted text block streams simulated backend initialization and execution logs (e.g., "[PuLP] Validating...", "[SimPy] Simulating interference iteration 1/5...") during the execution loop.
+
+---
+
+## Installation & Usage
+
+### 1. Prerequisites
+
+Ensure you have Python 3.10+ installed. Install the required dependencies:
+
+```bash
+pip install networkx pulp simpy streamlit plotly pandas matplotlib
+```
+
+### 2. Run the Backend Simulation
+
+To run the discrete-event network simulation and generate the `network_config.xml` and `simulation_report.json` files:
+
+```bash
+python3 run_simulation.py
+```
+
+### 3. Launch the Interactive Dashboard
+
+To launch the real-time presentation dashboard in your browser:
+
+```bash
+streamlit run app.py
+```
