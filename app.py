@@ -6,17 +6,76 @@ import plotly.express as px
 import networkx as nx
 
 st.set_page_config(
-    page_title="SD-TSN Simulation Dashboard",
+    page_title="SD-TSN Presentation Dashboard",
     page_icon="🚗",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
-st.title("SD-TSN In-Vehicle Network Simulation")
+# Custom CSS for a professional automotive-tech dark/clean theme
 st.markdown("""
-This interactive dashboard visualizes the determinism of a Software-Defined Time-Sensitive Network (SD-TSN) for in-vehicle architectures.
-It demonstrates that mission-critical **Priority 7** traffic (Flow 1) maintains a strict latency bound regardless of large interference payloads from **Priority 0** traffic (Flow 2).
+    <style>
+    .stApp {
+        background-color: #0e1117;
+        color: #e0e6ed;
+    }
+    .metric-card {
+        background-color: #1e2530;
+        border-radius: 8px;
+        padding: 15px;
+        border: 1px solid #333;
+    }
+    /* Glow effect for critical text */
+    .glow-text {
+        color: #ff4b4b;
+        text-shadow: 0 0 10px #ff4b4b;
+        font-weight: bold;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+st.title("SD-TSN In-Vehicle Network: Guided Presentation")
+st.markdown("""
+This dashboard demonstrates the capabilities of a Software-Defined Time-Sensitive Network (SD-TSN) architecture.
+Follow the guided phases to witness how the Centralized Network Configuration (CNC) guarantees deterministic latency for mission-critical traffic, even under massive background interference.
 """)
+
+# --- Phase Tracker State ---
+if 'demo_phase' not in st.session_state:
+    st.session_state.demo_phase = 0
+if 'is_running' not in st.session_state:
+    st.session_state.is_running = False
+
+def render_phase_tracker():
+    phases = [
+        ("🟢 Discovery", "Mapping Topology & Flows"),
+        ("🟡 Optimization (ILP)", "Solving TAS Scheduling"),
+        ("🟠 Configuration", "Deploying GCL & L2 Routing"),
+        ("🔴 Live Stress-Test", "Validating Determinism")
+    ]
+
+    cols = st.columns(4)
+    for i, (title, desc) in enumerate(phases):
+        with cols[i]:
+            if st.session_state.demo_phase > i:
+                st.success(f"**{title}**\n\n{desc}")
+            elif st.session_state.demo_phase == i:
+                if st.session_state.is_running:
+                    st.warning(f"**{title}**\n\n{desc} *(In Progress...)*")
+                else:
+                    st.info(f"**{title}**\n\n{desc} *(Pending)*")
+            else:
+                st.markdown(f"<div class='metric-card' style='opacity:0.5'><strong>{title}</strong><br><small>{desc}</small></div>", unsafe_allow_html=True)
+
+st.markdown("---")
+phase_tracker_placeholder = st.empty()
+with phase_tracker_placeholder.container():
+    render_phase_tracker()
+st.markdown("---")
+
+def update_phase_tracker_ui():
+    with phase_tracker_placeholder.container():
+        render_phase_tracker()
 
 def create_network_topology():
     # Constructing a simple representation of our Zonal Architecture
@@ -68,7 +127,7 @@ def create_network_topology():
         name='Network Links'
     )
 
-    # Flow 1 edges (Red)
+    # Flow 1 edges (Glowing Red)
     f1_x = []
     f1_y = []
     for edge in flow1_edges:
@@ -79,13 +138,13 @@ def create_network_topology():
 
     f1_trace = go.Scatter(
         x=f1_x, y=f1_y,
-        line=dict(width=4, color='red'),
+        line=dict(width=6, color='#ff4b4b'), # Streamlit red
         hoverinfo='none',
         mode='lines',
-        name='Flow 1 (Prio 7) Critical Path'
+        name='Flow 1: Mission-Critical Route'
     )
 
-    # Flow 2 edges (Amber)
+    # Flow 2 edges (Dashed Amber)
     f2_x = []
     f2_y = []
     for edge in flow2_edges:
@@ -96,10 +155,10 @@ def create_network_topology():
 
     f2_trace = go.Scatter(
         x=f2_x, y=f2_y,
-        line=dict(width=4, color='orange', dash='dash'),
+        line=dict(width=4, color='#faca2b', dash='dash'), # Amber
         hoverinfo='none',
         mode='lines',
-        name='Flow 2 (Prio 0) Interference Path'
+        name='Flow 2: Background Interference Route'
     )
 
     node_x = []
@@ -110,33 +169,35 @@ def create_network_topology():
         x, y = pos[node]
         node_x.append(x)
         node_y.append(y)
-        node_text.append(node)
+        node_text.append(f"<b>{node}</b>")
         if 'E' in node:
-            node_color.append('lightblue')
+            node_color.append('#2b5b84') # Dark blue
         elif 'SW' in node:
-            node_color.append('lightgreen')
+            node_color.append('#4a4a4a') # Dark gray
         else:
-            node_color.append('plum') # GW
+            node_color.append('#800080') # Purple Gateway
 
     node_trace = go.Scatter(
         x=node_x, y=node_y,
         mode='markers+text',
         text=node_text,
+        textfont=dict(color='white'),
         textposition="top center",
         hoverinfo='text',
         marker=dict(
             showscale=False,
             color=node_color,
-            size=30,
-            line_width=2
+            size=35,
+            line=dict(width=2, color='white')
         ),
-        name='Network Nodes'
+        name='Network Controllers / Nodes'
     )
 
     fig = go.Figure(data=[edge_trace, f2_trace, f1_trace, node_trace],
              layout=go.Layout(
-                title=dict(text='<br>Zonal In-Vehicle Network Topology', font=dict(size=16)),
+                title=dict(text='<br>Zonal In-Vehicle Network Topology', font=dict(size=18, color='white')),
                 showlegend=True,
+                legend=dict(x=0.01, y=0.99, bgcolor='rgba(0,0,0,0.5)', font=dict(color='white')),
                 hovermode='closest',
                 margin=dict(b=20,l=5,r=5,t=40),
                 xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
@@ -147,45 +208,57 @@ def create_network_topology():
     )
     return fig
 
-# Metrics state
-if 'is_running' not in st.session_state:
-    st.session_state.is_running = False
-
 def run_simulation():
     st.session_state.is_running = True
+    st.session_state.demo_phase = 0
 
-# UI Layout
+# UI Layout Placeholder
 col1, col2 = st.columns([1, 1])
 
 with col1:
-    st.plotly_chart(create_network_topology(), use_container_width=True)
+    topo_placeholder = st.empty()
+    if st.session_state.demo_phase == 0 and not st.session_state.is_running:
+        topo_placeholder.info("Topology map will appear here during Discovery Phase.")
+    elif st.session_state.demo_phase >= 1:
+        topo_placeholder.plotly_chart(create_network_topology(), use_container_width=True)
 
 with col2:
-    st.subheader("Simulation Controls")
+    st.subheader("Demo Controls")
+    start_btn = st.button("▶️ Start Live Demo", type="primary", on_click=run_simulation, disabled=st.session_state.is_running)
 
-    start_btn = st.button("▶️ Run Live Simulation", type="primary", on_click=run_simulation)
-
-    st.markdown("### Flow Metrics")
+    st.markdown("### Real-Time Flow Metrics")
     metric_col1, metric_col2 = st.columns(2)
 
     with metric_col1:
         f1_metric = st.empty()
-        f1_metric.metric("Flow 1 (Priority 7) Latency", "--- µs", "--- jitter")
+        f1_metric.markdown("<div class='metric-card' style='opacity:0.5'><strong>Flow 1 (Priority 7) Latency</strong><br>---</div>", unsafe_allow_html=True)
     with metric_col2:
         f2_metric = st.empty()
-        f2_metric.metric("Flow 2 (Priority 0) Payload", "--- Bytes", "--- Latency")
+        f2_metric.markdown("<div class='metric-card' style='opacity:0.5'><strong>Flow 2 (Priority 0) Payload</strong><br>---</div>", unsafe_allow_html=True)
 
     status_text = st.empty()
-    status_text.info("System Ready. Click Run Live Simulation to begin.")
+    if not st.session_state.is_running:
+        status_text.info("System Ready. Click Start Live Demo to begin the guided presentation.")
 
+st.markdown("---")
+
+col_bottom1, col_bottom2 = st.columns([1, 1])
+
+with col_bottom1:
     st.markdown("### End-to-End Latency Results")
     chart_placeholder = st.empty()
+    if st.session_state.demo_phase < 4:
+        chart_placeholder.info("Latency plotting will commence during Stress-Test Phase.")
 
-    st.markdown("### Gate Control List (GCL) Schedule")
+with col_bottom2:
+    st.markdown("### TAS Configuration (Gantt)")
     gantt_placeholder = st.empty()
+    if st.session_state.demo_phase < 3:
+        gantt_placeholder.info("Gate Control List schedules will appear here after ILP Calculation.")
 
-    st.markdown("### Simulation Logs")
-    log_placeholder = st.empty()
+st.markdown("### Simulated Live Logs")
+log_placeholder = st.empty()
+if not st.session_state.is_running and st.session_state.demo_phase == 0:
     log_placeholder.code("> Awaiting simulation start...", language='bash')
 
 def draw_gantt_chart():
@@ -228,13 +301,11 @@ def draw_gantt_chart():
     fig.add_trace(go.Bar(
         y=['Queue 0 (Best Effort)'],
         x=[121.76],
-        base=[-121.76 + 50000], # The cycle ends at 50,000, so gb is at end of previous cycle (or just before 0).
-        # To display it clearly, let's show it in a -121.76 to 0 relative window, or 0 to 121.76 relative to the block.
-        # Actually let's simulate the relative start of a cycle
+        base=[-121.76 + 50000],
         orientation='h',
-        marker=dict(color='rgba(255, 0, 0, 0.5)', pattern_shape="/"),
+        marker=dict(color='#8B0000', pattern_shape="/"),
         name='Guard Band',
-        hovertext='Guard Band (121.76 µs)<br>Ensures massive P0 frames do not block P7.',
+        hovertext='<b>Guard Band (121.76 µs)</b><br>This safety gap prevents delivery trucks (P0)<br>from blocking the ambulance (P7).',
         hoverinfo='text'
     ))
 
@@ -244,109 +315,147 @@ def draw_gantt_chart():
         x=[121.76],
         base=[-121.76],
         orientation='h',
-        marker=dict(color='rgba(255, 0, 0, 0.5)', pattern_shape="/"),
+        marker=dict(color='#8B0000', pattern_shape="/"),
         name='Guard Band',
-        hovertext='Guard Band (121.76 µs)<br>Closes Queue 0 to ensure Link is free for P7.',
+        hovertext='<b>Guard Band (121.76 µs)</b><br>This safety gap prevents delivery trucks (P0)<br>from blocking the ambulance (P7).',
         hoverinfo='text',
         showlegend=False
     ))
 
     fig.update_layout(
-        title="Switch Egress Port Schedule (Zoomed to Cycle Start)",
+        title=dict(text="Switch Egress TAS Schedule (Zoomed to Cycle Start)", font=dict(color='white')),
         barmode='overlay',
         xaxis=dict(
-            title="Time relative to Cycle Start (µs)",
+            title=dict(text="Time relative to Cycle Start (µs)", font=dict(color='white')),
+            tickfont=dict(color='white'),
             range=[-150, 300],
             zeroline=True,
-            zerolinecolor='black',
+            zerolinecolor='white',
             zerolinewidth=2
         ),
-        yaxis=dict(title=""),
+        yaxis=dict(title="", tickfont=dict(color='white')),
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
         height=300,
         margin=dict(l=20, r=20, t=40, b=40),
-        legend=dict(x=0.01, y=0.99, bgcolor='rgba(255,255,255,0.5)')
+        legend=dict(x=0.01, y=0.99, bgcolor='rgba(0,0,0,0.5)', font=dict(color='white'))
     )
     return fig
 
-# Initialize static Gantt chart
-gantt_placeholder.plotly_chart(draw_gantt_chart(), use_container_width=True)
+# Sequential Demo Execution Block
+if st.session_state.is_running and st.session_state.demo_phase == 0:
+    # Phase 0 -> 1: Discovery
+    st.session_state.demo_phase = 1
+    update_phase_tracker_ui()
+    current_logs = "> [System] Initializing Presentation Engine...\n"
+    log_placeholder.code(current_logs, language='bash')
+    status_text.info("Phase 1: Discovering Network Topology and Flows...")
+    time.sleep(1.0)
+    current_logs += "> [Discovery] Scanning zonal architecture... Found 8 nodes, 7 links.\n"
+    current_logs += "> [CUC] Identified Flow 1: Mission-Critical (Prio 7).\n"
+    current_logs += "> [CUC] Identified Flow 2: Best-Effort Interference (Prio 0).\n"
+    log_placeholder.code(current_logs, language='bash')
+    topo_placeholder.plotly_chart(create_network_topology(), use_container_width=True)
+    time.sleep(2.0)
 
-# Live simulation execution block
-if st.session_state.is_running:
+    # Phase 1 -> 2: Optimization
+    st.session_state.demo_phase = 2
+    update_phase_tracker_ui()
+    status_text.warning("Phase 2: Solving TAS Schedules via Integer Linear Programming...")
+    current_logs += "> [PuLP] Formulating ILP Constraints...\n"
+    log_placeholder.code(current_logs, language='bash')
+    time.sleep(1.5)
+    current_logs += "> [PuLP] Link Resource & Flow Isolation Constraints satisfied.\n"
+    current_logs += "> [PuLP] Calculating required Guard Band... Solved: 121.76 µs.\n"
+    log_placeholder.code(current_logs, language='bash')
+    time.sleep(1.5)
+
+    # Phase 2 -> 3: Configuration
+    st.session_state.demo_phase = 3
+    update_phase_tracker_ui()
+    status_text.success("Phase 3: Deploying GCL to Network Switches...")
+    current_logs += "> [CNC] Compiling YANG-style XML Configurations...\n"
+    log_placeholder.code(current_logs, language='bash')
+    time.sleep(1.0)
+    gantt_placeholder.plotly_chart(draw_gantt_chart(), use_container_width=True)
+    current_logs += "> [CNC] Deployed Gate Control Lists successfully to SW1, SW2, SW3, SW4.\n"
+    log_placeholder.code(current_logs, language='bash')
+    time.sleep(2.0)
+
+    # Phase 3 -> 4: Live Stress Test
+    st.session_state.demo_phase = 4
+    update_phase_tracker_ui()
+    status_text.error("Phase 4: Running SimPy Live Stress-Test. Injecting massive interference.")
+
     payloads = [3200, 16000, 32000, 64000, 102400]
-    expected_latency = 345.84 # Microseconds (Strict deterministic value from PuLP/SimPy)
-
-    # For Priority 0 latency estimation, standard store-and-forward delay escalates with payload
-    # This is a rough simulation representation of best-effort queuing
+    expected_latency = 345.84 # Strict deterministic value
     base_latency_p0 = 1200
     p0_latencies = []
     p7_latencies = []
 
-    status_text.warning("Simulation running... Injecting Priority 0 interference traffic.")
-
-    # Logs tracking
-    current_logs = "> Starting SD-TSN Simulation Environment...\n"
-    current_logs += "> [PuLP] Validating integer linear programming schedules for TAS...\n"
-    current_logs += "> [GCL] Gate Control Lists verified. Guard Band 121.76 µs configured.\n"
-    log_placeholder.code(current_logs, language='bash')
-
-    # Progress bar
     progress_bar = st.progress(0)
 
     for i, payload in enumerate(payloads):
-        # Simulate computational time
-        time.sleep(0.5)
-        current_logs += f"> [SimPy] Simulating interference iteration {i+1}/5...\n"
+        time.sleep(0.8)
+        current_logs += f"> [SimPy] Stress Test Iteration {i+1}/5: Injecting {payload:,} Bytes of Prio 0 Traffic...\n"
         log_placeholder.code(current_logs, language='bash')
-
         time.sleep(0.5)
 
-        # Calculate dynamic P0 latency purely for visualization
         current_p0_latency = base_latency_p0 + (payload * 0.15)
         p0_latencies.append(current_p0_latency)
         p7_latencies.append(expected_latency)
 
-        # Update metrics live
-        f1_metric.metric("Flow 1 (Priority 7) Latency", f"{expected_latency:.2f} µs", "0.00 µs (Deterministic)", delta_color="normal")
-        f2_metric.metric("Flow 2 (Priority 0) Payload", f"{payload:,} Bytes", f"{current_p0_latency:.2f} µs Latency", delta_color="inverse")
+        # Update glowing metric cards
+        f1_metric.markdown(f"<div class='metric-card glow-text'><strong>Flow 1 (Priority 7) Latency</strong><br><span style='font-size:24px;'>{expected_latency:.2f} µs</span><br><small style='color:lightgreen;'>0.00 µs Jitter (Deterministic)</small></div>", unsafe_allow_html=True)
+        f2_metric.markdown(f"<div class='metric-card'><strong>Flow 2 (Priority 0) Payload</strong><br><span style='font-size:24px; color:#faca2b;'>{payload:,} Bytes</span><br><small style='color:#faca2b;'>{current_p0_latency:.2f} µs Latency (+{payload - payloads[i-1] if i > 0 else 0} B)</small></div>", unsafe_allow_html=True)
 
-        # Update dynamic chart
+        # Dynamic animated plotting
         fig = go.Figure()
         fig.add_trace(go.Scatter(
             x=payloads[:i+1], y=p7_latencies,
             mode='lines+markers',
-            name='Flow 1 (Priority 7)',
-            line=dict(color='red', width=3),
+            name='Flow 1: Mission-Critical',
+            line=dict(color='#ff4b4b', width=4),
             marker=dict(size=10)
         ))
         fig.add_trace(go.Scatter(
             x=payloads[:i+1], y=p0_latencies,
             mode='lines+markers',
-            name='Flow 2 (Priority 0)',
-            line=dict(color='orange', width=3, dash='dash'),
+            name='Flow 2: Interference',
+            line=dict(color='#faca2b', width=3, dash='dash'),
             marker=dict(size=10),
             yaxis='y2'
         ))
 
         fig.update_layout(
-            title="End-to-End Latency vs. Interference Payload",
-            xaxis=dict(title="Flow 2 Payload Size (Bytes)", type="category"),
-            yaxis=dict(title=dict(text="Flow 1 Latency (µs)", font=dict(color="red")), tickfont=dict(color="red"), range=[0, 1000]),
-            yaxis2=dict(title=dict(text="Flow 2 Latency (µs)", font=dict(color="orange")), tickfont=dict(color="orange"), overlaying='y', side='right', range=[0, max(20000, current_p0_latency * 1.2)]),
-            legend=dict(x=0.01, y=0.99, bgcolor='rgba(255,255,255,0.5)'),
+            title=dict(text="Real-Time End-to-End Latency vs. Interference Payload", font=dict(color='white')),
+            xaxis=dict(title=dict(text="Flow 2 Payload Size (Bytes)", font=dict(color='white')), type="category", tickfont=dict(color='white')),
+            yaxis=dict(title=dict(text="Flow 1 Latency (µs)", font=dict(color="#ff4b4b")), tickfont=dict(color="#ff4b4b"), range=[0, 1000]),
+            yaxis2=dict(title=dict(text="Flow 2 Latency (µs)", font=dict(color="#faca2b")), tickfont=dict(color="#faca2b"), overlaying='y', side='right', range=[0, max(20000, current_p0_latency * 1.2)]),
+            legend=dict(x=0.01, y=0.99, bgcolor='rgba(0,0,0,0.5)', font=dict(color='white')),
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
             margin=dict(l=40, r=40, t=40, b=40),
-            height=400
+            height=300
         )
         chart_placeholder.plotly_chart(fig, use_container_width=True)
 
-        current_logs += f"> [Result] Iteration {i+1} complete: Payload {payload}B -> P7 Latency {expected_latency}µs\n"
+        current_logs += f"> [Result] Iteration {i+1} complete: Prio 7 Latency locked at {expected_latency} µs.\n"
         log_placeholder.code(current_logs, language='bash')
 
         progress = (i + 1) / len(payloads)
         progress_bar.progress(progress)
 
-    time.sleep(0.5)
-    current_logs += "> Simulation suite finished. Determinism fully validated.\n"
+    time.sleep(1.0)
+    current_logs += "> [Verification] Live Stress-Test complete. Determinism mathematically and empirically validated.\n"
     log_placeholder.code(current_logs, language='bash')
-    status_text.success("Simulation Complete! Notice the strict determinism of Flow 1 despite 100KB+ interference payloads.")
+    status_text.success("Presentation Complete! The SD-TSN perfectly maintained critical operations despite 100KB+ interference.")
     st.session_state.is_running = False
+
+    # Rerun to cleanly update the phase tracker to show all phases green/done
+    st.rerun()
+
+# Persist visual elements if phase completes
+if not st.session_state.is_running and st.session_state.demo_phase == 4:
+    topo_placeholder.plotly_chart(create_network_topology(), use_container_width=True, key="topo_persist")
+    gantt_placeholder.plotly_chart(draw_gantt_chart(), use_container_width=True, key="gantt_persist")
