@@ -1,8 +1,25 @@
+"""
+Discrete-Event Data Plane Simulator for SD-TSN
+
+This module validates the mathematically calculated TAS schedules in a "real-world"
+network environment. Utilizing `SimPy`, it models the exact physical links,
+transmission times, switch store-and-forward delays, and egress port queues.
+
+Crucially, it simulates the IEEE 802.1Qbv gate control logic:
+If a Priority 0 packet arrives while the Priority 0 gate is closed
+(e.g., during the Guard Band), the packet sits in the buffer and waits, ensuring
+the physical link is completely free when the Priority 7 packet arrives.
+"""
+
 import simpy
 from typing import List, Dict, Any, Tuple
 from models import Flow, Topology
 
 class Packet:
+    """
+    Represents an individual unit of data transiting the network.
+    Contains metadata like priority and size for calculating transmission delays.
+    """
     def __init__(self, packet_id: int, flow: Flow, creation_time: float):
         self.packet_id = packet_id
         self.flow = flow
@@ -34,6 +51,10 @@ class Endpoint:
             yield self.env.timeout(flow.period)
 
 class SwitchPort:
+    """
+    Simulates a physical egress port on an automotive switch.
+    Handles distinct priority queues and mathematically enforces the Gate Control List (GCL) transmission timings.
+    """
     def __init__(self, env: simpy.Environment, node_name: str, port_id: int,
                  gcl_events: List[Dict], cycle_time: int, speed_mbps: int = 100):
         self.env = env

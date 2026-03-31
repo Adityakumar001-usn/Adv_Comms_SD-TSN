@@ -1,9 +1,29 @@
+"""
+Data Models for SD-TSN In-Vehicle Network Simulation
+
+This module defines the foundational structures for the simulation:
+1. `Flow`: Represents a data stream (either mission-critical or best-effort interference).
+2. `Topology`: A NetworkX directed graph representing the physical wiring of the zonal automotive architecture.
+"""
+
 import networkx as nx
 from dataclasses import dataclass
 from typing import Optional
 
 @dataclass
 class Flow:
+    """
+    Represents a periodic network transmission from a source endpoint to a destination endpoint.
+
+    Attributes:
+        flow_id: A unique identifier (e.g., "Flow1").
+        source: The originating node (e.g., "E1").
+        destination: The target node (e.g., "E3").
+        period: How often the flow transmits data (in microseconds).
+        priority: IEEE 802.1Q PCP priority level (0 = Best Effort, 7 = Time-Sensitive Critical).
+        payload_size: Size of the data packet in Bytes.
+        max_latency: The strict deadline (in microseconds) the packet must arrive by.
+    """
     flow_id: str
     source: str
     destination: str
@@ -13,6 +33,10 @@ class Flow:
     max_latency: int  # in microseconds (us)
 
 class Topology:
+    """
+    Constructs the physical network architecture using a NetworkX directed graph.
+    All physical links are modeled as full-duplex 100 Mbps automotive Ethernet connections.
+    """
     def __init__(self):
         self.graph = nx.DiGraph()
         self.build_topology()

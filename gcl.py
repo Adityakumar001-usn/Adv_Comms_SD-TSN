@@ -1,3 +1,13 @@
+"""
+Gate Control List (GCL) Configuration Module
+
+This module takes the exact µs-level offsets calculated by the ILP Scheduler
+and turns them into IEEE 802.1Qbv Time-Aware Shaper (TAS) configurations.
+It determines exactly when network switch queues should open and close,
+enforcing the crucial "Guard Band" before critical data arrives.
+It exports these configurations into a standard YANG-style XML format.
+"""
+
 import math
 import xml.etree.ElementTree as ET
 from xml.dom import minidom
@@ -5,6 +15,9 @@ from typing import List, Dict, Tuple, Any
 from models import Flow, Topology
 
 class GCLGenerator:
+    """
+    Generates deterministic schedules for every egress port queue in the network.
+    """
     def __init__(self, topology: Topology, port_map: Dict[str, Dict[str, int]]):
         self.topology = topology
         self.port_map = port_map

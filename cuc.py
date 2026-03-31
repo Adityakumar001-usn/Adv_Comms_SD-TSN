@@ -1,14 +1,31 @@
+"""
+Centralized User Configuration (CUC) Mock Module
+
+In a true SD-TSN architecture, the CUC receives requests from endpoints
+(like sensors or cameras) to set up data streams, and it forwards these requirements
+to the Centralized Network Configuration (CNC) controller.
+
+This mock module simulates that behavior by statically generating the test flows
+required to validate the mathematical determinism of the network.
+"""
+
 from models import Flow
 
 class MockCUC:
     """
-    Mock Centralized User Configuration (CUC) module that generates test flows.
+    Simulates the Centralized User Configuration endpoint.
+    Generates two specific flows: one mission-critical (Priority 7) and one
+    best-effort background interference (Priority 0).
     """
     def __init__(self):
         self.flows = []
 
     def generate_test_flows(self):
-        # Flow 1 (Time-Sensitive): E1 to E3, Priority 7, 50ms period, 1024 Byte payload, 500µs max latency.
+        """
+        Creates and returns the list of Flow objects for the simulation test suite.
+        """
+        # Flow 1 (Time-Sensitive): Mission Critical (e.g., LiDAR or electronic steering control)
+        # This flow must strictly maintain a <= 500 us latency boundary.
         flow1 = Flow(
             flow_id="Flow1",
             source="E1",

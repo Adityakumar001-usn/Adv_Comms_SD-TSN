@@ -1,8 +1,20 @@
+"""
+Integer Linear Programming (ILP) Scheduler for Time-Aware Shapers (TAS)
+
+This module is the mathematical core of the SD-TSN controller. It uses the `PuLP` library
+to calculate the exact microsecond (µs) transmission offsets for critical network flows.
+It strictly enforces latency boundaries and calculates the critical "Guard Band" required
+to protect high-priority traffic from massive background interference.
+"""
+
 import pulp
 from typing import List, Dict, Tuple
 from models import Flow, Topology
 
 class ILPScheduler:
+    """
+    Formulates and solves the scheduling constraints for IEEE 802.1Qbv switches.
+    """
     def __init__(self, topology: Topology, routing: Dict[str, List[str]]):
         self.topology = topology
         self.routing = routing
@@ -53,30 +65,35 @@ class ILPScheduler:
         # The arrival time at the destination is the offset on the last edge + transmission duration
         prob += t_offset[edges[-1]] + t_trans, "Minimize_End_to_End_Latency"
 
-        # Constraints
-        # 1. End-to-End Latency Constraint: total latency <= max_latency
+        # Mathematical Constraints enforcing SD-TSN Determinism:
+
+        # 1. End-to-End Latency Constraint
+        # The packet must depart the source and arrive at the final destination
+        # completely before its strict `max_latency` deadline expires.
         prob += t_offset[edges[-1]] + t_trans - t_offset[edges[0]] <= flow.max_latency, "Max_Latency_Constraint"
 
-        # 2. Causality and Processing Delay: offset on next edge >= offset on prev edge + transmission + processing
+        # 2. Causality and Switch Processing Delay Constraint
+        # A switch cannot forward a packet before it has fully received it AND
+        # finished processing it (d_proc, e.g., 2.0 µs store-and-forward delay).
         for i in range(len(edges) - 1):
             e_prev = edges[i]
             e_next = edges[i+1]
             prob += t_offset[e_next] >= t_offset[e_prev] + t_trans + self.d_proc, f"Causality_{e_prev}_{e_next}"
 
-        # 3. Transmission Start Constraint (offset + transmission time <= period)
-        # We also need to add the compensation value C to ends according to the paper?
-        # The paper says: "Compensation C: This value is added to both ends of the required transmission slot to mitigate real-world jitter."
-        # This means the reserved window is [offset - C, offset + t_trans + C].
-        # So offset - C >= 0, and offset + t_trans + C <= period.
+        # 3. Transmission Window Constraint (with Jitter Compensation)
+        # The transmission must occur entirely within the flow's period.
+        # We also add a small `compensation` value (1.0 µs) to both the start and
+        # end of the calculated window to mathematically mitigate any real-world jitter.
         for e in edges:
             prob += t_offset[e] - self.compensation >= 0, f"Compensation_Start_{e}"
             prob += t_offset[e] + t_trans + self.compensation <= flow.period, f"Period_End_{e}"
 
-        # 4. We only have one time-sensitive flow in this scenario to explicitly schedule!
-        # Thus, Flow Isolation constraints (between multiple TS flows) are trivially satisfied.
-        # Flow 2 is background traffic (Priority 0) and simply transmits outside of Flow 1's window + Guard Band.
+        # 4. Guard Band (GB) & Flow Isolation logic
+        # Flow 2 is background traffic (Priority 0). To prevent a massive MTU-sized Prio 0 frame
+        # from blocking the link right as Flow 1 needs to transmit, the system uses a Guard Band (121.76 µs).
+        # This isn't an ILP constraint for Prio 7, but rather dictates how the Prio 0 Gate Control List is generated later.
 
-        # Solve the problem
+        # Solve the ILP Model using CBC Solver
         prob.solve(pulp.PULP_CBC_CMD(msg=False))
 
         if pulp.LpStatus[prob.status] != "Optimal":

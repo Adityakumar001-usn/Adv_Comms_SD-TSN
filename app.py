@@ -1,3 +1,17 @@
+"""
+SD-TSN Interactive Presentation Dashboard
+
+This module provides a visual, real-time presentation interface for the SD-TSN simulation.
+Using Streamlit and Plotly, it guides the user through the 4 core phases:
+1. Discovery (Mapping Topology)
+2. Optimization (Solving ILP mathematically)
+3. Configuration (Deploying GCL and routing rules)
+4. Live Stress-Test (Animating a massive background interference attack)
+
+The code utilizes a state machine `st.session_state.demo_phase` to progressively
+reveal content and simulate processing delays using `time.sleep()`.
+"""
+
 import streamlit as st
 import pandas as pd
 import time

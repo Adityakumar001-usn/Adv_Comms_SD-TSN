@@ -1,3 +1,15 @@
+"""
+Main Execution Runner for the SD-TSN Simulation
+
+This script acts as the overarching orchestrator. It triggers the entire pipeline:
+1. Discovery: Builds the mathematical models for the Topology and Data Flows.
+2. Control Plane (CNC): Calculates the Shortest-Paths (L2 Routing).
+3. Optimization: Uses PuLP to solve for deterministic transmission offsets (TAS ILP).
+4. Configuration: Exports the final schedules to a YANG-style XML configuration.
+5. Data Plane Validation: Uses SimPy to run a discrete-event network stress-test,
+   verifying whether determinism is actually maintained.
+"""
+
 from models import Topology, Flow
 from cuc import MockCUC
 from routing import CNCRouting
@@ -7,6 +19,11 @@ from simulator import TSNSimulator
 import json
 
 def run_simulation_tests():
+    """
+    Runs the automated test suite, gradually increasing the size of
+    Priority 0 (Best-Effort) interference to validate the determinism
+    of Flow 1 (Priority 7).
+    """
     payload_sizes = [3200, 6400, 12800, 25600, 51200, 102400]
     simulation_duration = 5000000  # 5000 ms = 5,000,000 us
 

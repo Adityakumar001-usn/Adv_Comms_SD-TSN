@@ -1,9 +1,23 @@
+"""
+Centralized Network Configuration (CNC) Routing Module
+
+This module represents the "Control Plane" of the SD-TSN architecture.
+It calculates the exact physical path (routing) that each data flow will take
+through the zonal topology and generates the Layer 2 (L2) MAC lookup tables
+that will be flashed to the network switches.
+"""
+
 from typing import List, Dict, Any
 import networkx as nx
 from models import Topology, Flow
 import json
 
 class CNCRouting:
+    """
+    Computes shortest-path routes through the NetworkX topology and translates
+    those routes into hardware-level concepts (MAC addresses, egress port IDs,
+    and L2 forwarding rules).
+    """
     def __init__(self, topology: Topology):
         self.topology = topology
         self.mac_table: Dict[str, str] = self._assign_mac_addresses()
