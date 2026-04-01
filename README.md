@@ -59,18 +59,22 @@ Running the core simulation generates two primary artifacts automatically saved 
 
 ---
 
-## Interactive Presentation Dashboard (Phase 2)
+## Interactive Guided Presentation Dashboard (Phase 2)
 
-An interactive, web-based dashboard built with Streamlit (`app.py`) serves as the primary presentation layer for the simulation results. It dynamically visualizes the determinism of the network.
+A professional, interactive dashboard built with Streamlit (`app.py`) serves as the primary presentation layer for audiences. It transforms the raw backend data into a highly visual, phase-based engineering presentation.
 
 ### Dashboard Features (`app.py`)
 
-*   **Interactive Topology:** A custom NetworkX/Plotly graph displaying the zonal architecture, highlighting the critical path (Red) and interference path (Amber).
-*   **Live Simulation Execution:** A "▶️ Run Live Simulation" button simulates the background interference scaling (3.2KB to 102.4KB), triggering real-time UI updates via `time.sleep()`.
-*   **Dynamic Metrics:** `st.metric` cards cleanly display the unwavering 345.84 µs / 0.00 µs jitter latency for Flow 1 alongside the escalating latency estimation for Flow 2.
-*   **Animated Results Chart:** A dual-axis Plotly line graph animates step-by-step as the simulation progresses.
-*   **GCL Schedule Gantt Chart:** A pre-computed static Plotly Gantt chart visualizing the switch egress schedule, including explicit hover text annotations for the 121.76 µs Guard Band protecting the Priority 7 queue.
-*   **Simulated Terminal Logs:** A code-formatted text block streams simulated backend initialization and execution logs (e.g., "[PuLP] Validating...", "[SimPy] Simulating interference iteration 1/5...") during the execution loop.
+*   **Sequential Live Demo Logic:** A "▶️ Start Live Demo" button triggers a fully animated state machine that guides the audience through the four critical engineering phases:
+    1.  **🟢 Discovery:** Dynamically mapping the topology and flows.
+    2.  **🟡 Optimization (ILP):** Mathematically solving the Time-Aware Shaper (TAS) scheduling constraints.
+    3.  **🟠 Configuration:** Compiling the YANG-style XML and deploying the Gate Control Lists to the switches.
+    4.  **🔴 Live Stress-Test:** Running a live background interference loop (3.2KB to 102.4KB payloads).
+*   **Enhanced Topology Map:** A customized NetworkX/Plotly graph emphasizing a glowing red critical route (Flow 1) and a dashed amber background route (Flow 2).
+*   **Live Metrics:** Dynamic, glowing `st.metric` cards verifying the strict 345.84 µs latency bound and 0.00 µs jitter for Flow 1 in real-time.
+*   **Animated Results Chart:** A dual-axis Plotly line graph that draws the Latency vs. Payload Load stress-test results point-by-point.
+*   **"Smart Gate" Gantt Chart:** A Plotly Gantt chart visualizing the switch egress schedule. It explicitly highlights the 121.76 µs Guard Band in dark red, featuring hover tooltips explaining how the safety gap prevents "delivery trucks from blocking the ambulance."
+*   **Simulated Terminal Logs:** A real-time scrolling code-block that streams technical backend execution updates (e.g., "[CNC] Deploying Gate Control List...", "[SimPy] Injecting 102,400 Bytes...") synchronized perfectly with the visual phases.
 
 ---
 
