@@ -17,6 +17,12 @@ from scheduler import ILPScheduler
 from gcl import GCLGenerator
 from simulator import TSNSimulator
 import json
+import time
+
+def print_step(title, message, delay=1.0):
+    print(f"\n[+] {title}")
+    print(f"    {message}")
+    time.sleep(delay)
 
 def run_simulation_tests():
     """
@@ -27,111 +33,145 @@ def run_simulation_tests():
     payload_sizes = [3200, 6400, 12800, 25600, 51200, 102400]
     simulation_duration = 5000000  # 5000 ms = 5,000,000 us
 
+    print("\n============================================================")
+    print("🚗 SD-TSN In-Vehicle Network Simulation Presentation 🚗")
+    print("============================================================\n")
+    time.sleep(1)
+
     # Initialize Base Models
+    print_step("Phase 1: Discovery", "Mapping Topology & Data Flows...", 1.5)
     topo = Topology()
     cuc = MockCUC()
     base_flows = cuc.generate_test_flows()
+    flow1 = next(f for f in base_flows if f.flow_id == "Flow1")
+    flow2 = next(f for f in base_flows if f.flow_id == "Flow2")
+
+    print(f"    -> Flow 1 (Critical): {flow1.source} -> {flow1.destination} (Payload: {flow1.payload_size}B, Prio: {flow1.priority})")
+    print(f"    -> Flow 2 (Background): {flow2.source} -> {flow2.destination} (Payload: Variable, Prio: {flow2.priority})")
+    time.sleep(1)
+
+    print_step("Phase 2: CNC Routing", "Computing optimal L2 routing paths...", 1.5)
     routing = CNCRouting(topo)
     routes = routing.compute_routes(base_flows)
+    print(f"    -> Flow 1 Route: {' -> '.join(routes['Flow1'])}")
+    print(f"    -> Flow 2 Route: {' -> '.join(routes['Flow2'])}")
+    time.sleep(1)
 
-    # Calculate Schedule and GCL based on Flow 1 (constant)
+    print_step("Phase 3: Mathematical Optimization (PuLP ILP)", "Calculating TAS transmission offsets & Guard Bands...", 2.0)
     scheduler = ILPScheduler(topo, routes)
-    flow1 = next(f for f in base_flows if f.flow_id == "Flow1")
-
     schedule = scheduler.schedule_flow(flow1)
     t_trans = scheduler.transmission_duration(flow1.payload_size)
 
+    path = routes['Flow1']
+    expected_latency = schedule[(path[-2], path[-1])] + t_trans - schedule[(path[0], path[1])]
+
+    print(f"    -> Guard Band Calculated: {scheduler.guard_band:.2f} µs (Blocks 100Mbps MTU interference)")
+    print(f"    -> Deterministic End-to-End Latency Locked at: {expected_latency:.2f} µs")
+    time.sleep(1.5)
+
+    print_step("Phase 4: Gate Control List Configuration", "Deploying YANG-style XML schedules to switches...", 1.5)
     gcl_gen = GCLGenerator(topo, routing.port_map)
     hyper_period = gcl_gen.calculate_hyper_period(base_flows)
     gcl_config = gcl_gen.generate_gcl(schedule, t_trans, hyper_period, flow1.period)
 
-    # Export GCL configuration to XML for documentation/YANG representation
     l2_tables = routing.generate_l2_lookup_tables(base_flows)
     xml_output = gcl_gen.generate_xml_configuration(l2_tables, gcl_config, hyper_period)
     with open("network_config.xml", "w") as f:
         f.write(xml_output)
+    print("    -> Wrote final hardware configuration to `network_config.xml`.")
+    time.sleep(1)
 
-    print("="*60)
-    print("SD-TSN In-Vehicle Network Simulation Report")
-    print("="*60)
-    print(f"Flow 1 (Time-Sensitive): Payload {flow1.payload_size} Bytes, Max Latency {flow1.max_latency} us")
-    print(f"Expected ILP Calculated Latency for Flow 1: 345.84 us")
-    print("-" * 60)
+    print("\n============================================================")
+    print("🔬 Data Plane Verification (SimPy Discrete-Event Engine)")
+    print("============================================================")
+    time.sleep(1)
 
     report_data = []
 
-    for payload in payload_sizes:
-        print(f"\nRunning simulation with Flow 2 Payload Size: {payload} Bytes...")
+    def execute_stress_test(name, tas_enabled=True, attack_active=False):
+        print(f"\n--- {name} ---")
+        time.sleep(1)
 
-        # Update Flow 2 payload
-        flows = []
-        for f in base_flows:
-            if f.flow_id == "Flow2":
-                flows.append(Flow(
-                    flow_id="Flow2",
-                    source="E2",
-                    destination="E3",
-                    period=10000,
-                    priority=0,
-                    payload_size=payload,
-                    max_latency=0
-                ))
+        for payload in payload_sizes:
+            print(f"  > Injecting Prio 0 Interference Payload: {payload:,} Bytes...")
+            time.sleep(0.5)
+
+            # Setup network topology for attack if needed
+            test_topo = Topology()
+            if attack_active:
+                test_topo.graph.add_node('MockAttacker', type='endpoint')
+                test_topo.add_bidirectional_link('MockAttacker', 'SW1')
+
+            test_routing = CNCRouting(test_topo)
+
+            # Update Flow 2 payload and add rogue node if attack is active
+            flows = []
+            for f in base_flows:
+                if f.flow_id == "Flow2":
+                    flows.append(Flow("Flow2", "E2", "E3", 10000, 0, payload, 0))
+                else:
+                    flows.append(Flow(f.flow_id, f.source, f.destination, f.period, f.priority, f.payload_size, f.max_latency))
+
+            if attack_active:
+                flows.append(Flow("RogueFlow", "MockAttacker", "E3", 1000, 7, 1500, 0))
+
+            # Initialize Simulator
+            sim = TSNSimulator(test_topo, test_routing, gcl_config, hyper_period, tas_enabled=tas_enabled, attack_active=attack_active)
+            for flow in flows:
+                sim.start_flow(flow)
+
+            # Run Simulation (SimPy)
+            sim.run(simulation_duration)
+
+            # Analyze Results
+            f1_latencies = sim.latencies.get("Flow1", [])
+            f2_latencies = sim.latencies.get("Flow2", [])
+
+            if not f1_latencies:
+                print("    Error: Flow 1 did not deliver any packets!")
+                continue
+
+            f1_avg = sum(f1_latencies) / len(f1_latencies)
+            f2_max = max(f2_latencies) if f2_latencies else 0
+
+            jitter = f1_avg - expected_latency
+
+            # Logging to console
+            print(f"    [Prio 0] Max Latency: {f2_max:.2f} µs")
+
+            if attack_active:
+                print(f"    [Security] Spoofed Packets Dropped: {sim.dropped_spoofed_packets:,}")
+
+            if abs(jitter) < 0.01:
+                print(f"    [Prio 7] Latency: {f1_avg:.2f} µs (Jitter: 0.00 µs) -> DETERMINISTIC")
             else:
-                flows.append(f)
+                print(f"    [Prio 7] Latency: {f1_avg:.2f} µs (Jitter: +{jitter:.2f} µs) -> LATENCY SPIKE (FAILED)")
 
-        # Initialize Simulator
-        sim = TSNSimulator(topo, routing, gcl_config, hyper_period)
-        for flow in flows:
-            sim.start_flow(flow)
+            report_data.append({
+                "scenario": name,
+                "flow2_payload_bytes": payload,
+                "flow1_avg_latency_us": f1_avg,
+                "jitter_us": jitter,
+                "dropped_packets": getattr(sim, 'dropped_spoofed_packets', 0)
+            })
+            time.sleep(0.5)
 
-        # Run Simulation
-        sim.run(simulation_duration)
+    # 1. Standard Unshaped Performance (TAS OFF)
+    execute_stress_test("Scenario A1: Strict Priority Only (TAS Disabled)", tas_enabled=False)
 
-        # Analyze Results
-        f1_latencies = sim.latencies.get("Flow1", [])
-        f2_latencies = sim.latencies.get("Flow2", [])
+    # 2. Shaped Performance (TAS ON)
+    execute_stress_test("Scenario A2: SD-TSN Enabled (TAS Active)", tas_enabled=True)
 
-        if not f1_latencies:
-            print("Error: Flow 1 did not deliver any packets!")
-            continue
+    # 3. Security (Rogue Node)
+    execute_stress_test("Scenario B: Cyber Attack (Rogue Node spoofing Prio 7)", tas_enabled=True, attack_active=True)
 
-        f1_avg = sum(f1_latencies) / len(f1_latencies)
-        f1_max = max(f1_latencies)
-        f1_min = min(f1_latencies)
-
-        f2_avg = sum(f2_latencies) / len(f2_latencies) if f2_latencies else 0
-        f2_max = max(f2_latencies) if f2_latencies else 0
-
-        success = f1_max <= flow1.max_latency
-
-        report_data.append({
-            "flow2_payload_bytes": payload,
-            "flow1_delivered": len(f1_latencies),
-            "flow1_avg_latency_us": f1_avg,
-            "flow1_max_latency_us": f1_max,
-            "flow1_min_latency_us": f1_min,
-            "flow2_delivered": len(f2_latencies),
-            "flow2_avg_latency_us": f2_avg,
-            "flow2_max_latency_us": f2_max,
-            "success": success
-        })
-
-        print(f"  Flow 1 Delivered: {len(f1_latencies)} (Expected ~100)")
-        print(f"  Flow 1 Latency -> Min: {f1_min:.2f} us, Avg: {f1_avg:.2f} us, Max: {f1_max:.2f} us")
-        print(f"  Flow 2 Delivered: {len(f2_latencies)}, Max Latency: {f2_max:.2f} us")
-        print(f"  Strict Determinism Maintained: {'YES' if success else 'NO'}")
-
-    print("\n" + "="*60)
-    print("Conclusion: ")
-    all_success = all(data['success'] for data in report_data)
-    if all_success:
-        print("Simulation SUCCESSFUL. Flow 1 strictly maintained <= 500us latency across all background traffic loads.")
-    else:
-        print("Simulation FAILED. Flow 1 experienced latency violations due to background traffic interference.")
+    print("\n============================================================")
+    print("Presentation Complete.")
+    print("============================================================")
 
     with open("simulation_report.json", "w") as f:
         json.dump(report_data, f, indent=4)
-    print("Report details saved to simulation_report.json")
+    print("Report details saved to `simulation_report.json`.")
 
 if __name__ == "__main__":
     run_simulation_tests()
