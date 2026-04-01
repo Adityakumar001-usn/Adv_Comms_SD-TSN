@@ -82,6 +82,13 @@ if 'is_running' not in st.session_state:
     st.session_state.is_running = False
 if 'final_logs' not in st.session_state:
     st.session_state.final_logs = ""
+if 'slow_mo' not in st.session_state:
+    st.session_state.slow_mo = False
+if 'us_clock' not in st.session_state:
+    st.session_state.us_clock = -50.0
+
+st.sidebar.title("Simulation Settings")
+st.session_state.slow_mo = st.sidebar.toggle("Enable Microsecond Slow-Mo", value=st.session_state.slow_mo, help="Pause at the maximum payload and manually step through the TAS scheduling.")
 
 def render_phase_tracker():
     phases = [
@@ -284,11 +291,11 @@ with col2:
 
     with metric_col1:
         f1_metric = st.empty()
-        if st.session_state.demo_phase < 4 or st.session_state.is_running:
+        if st.session_state.demo_phase < 4:
             f1_metric.markdown("<div class='metric-card' style='opacity:0.5'><strong>Flow 1 (Priority 7) Latency</strong><br><span style='font-size:24px; color:#4b5563'>--- µs</span><br><small style='color:#4b5563;'>Waiting for telemetry...</small></div>", unsafe_allow_html=True)
     with metric_col2:
         f2_metric = st.empty()
-        if st.session_state.demo_phase < 4 or st.session_state.is_running:
+        if st.session_state.demo_phase < 4:
             f2_metric.markdown("<div class='metric-card' style='opacity:0.5'><strong>Flow 2 (Priority 0) Payload</strong><br><span style='font-size:24px; color:#4b5563'>--- Bytes</span><br><small style='color:#4b5563;'>Waiting for telemetry...</small></div>", unsafe_allow_html=True)
 
     status_text = st.empty()
@@ -306,6 +313,7 @@ with col_bottom1:
 
 with col_bottom2:
     gantt_placeholder = st.empty()
+    queue_buffer_placeholder = st.empty() # Added placeholder for the queue buffers
     if st.session_state.demo_phase < 3:
         gantt_placeholder.plotly_chart(draw_empty_chart("Switch Egress TAS Schedule", "Time relative to Cycle Start (µs)", ""), use_container_width=True)
 
@@ -314,7 +322,7 @@ log_placeholder = st.empty()
 if not st.session_state.is_running and st.session_state.demo_phase == 0:
     log_placeholder.markdown("<div class='terminal-window' id='terminal_out'>user@cnc-server:~$ waiting for demo initialization...<span class='cursor'>_</span></div>", unsafe_allow_html=True)
 
-def draw_gantt_chart():
+def draw_gantt_chart(current_time=None):
     # Pre-computed deterministic GCL schedule based on PuLP ILP Output
     # Period: 50,000 µs (50ms)
     # Transmission times
@@ -375,6 +383,18 @@ def draw_gantt_chart():
         showlegend=False
     ))
 
+    if current_time is not None:
+        fig.add_vline(x=current_time, line_width=3, line_dash="dash", line_color="white")
+        fig.add_annotation(
+            x=current_time, y=1.1, xref="x", yref="paper",
+            text=f"Time: {current_time:.2f} µs",
+            showarrow=False,
+            font=dict(color="white", size=12),
+            bgcolor="#111827",
+            bordercolor="white",
+            borderwidth=1
+        )
+
     fig.update_layout(
         title=dict(text="Switch Egress TAS Schedule (Zoomed to Cycle Start)", font=dict(color='white')),
         barmode='overlay',
@@ -394,6 +414,40 @@ def draw_gantt_chart():
         legend=dict(x=0.01, y=0.99, bgcolor='rgba(0,0,0,0.5)', font=dict(color='white'))
     )
     return fig
+
+def draw_queue_buffers(q0_fill, q7_fill, gate0_open, gate7_open):
+    """Draws custom HTML/CSS progress bars representing the live switch egress port queues."""
+    g0_color = "#4ade80" if gate0_open else "#4b5563"
+    g0_text = "OPEN" if gate0_open else "CLOSED"
+
+    g7_color = "#4ade80" if gate7_open else "#4b5563"
+    g7_text = "OPEN" if gate7_open else "CLOSED"
+
+    html = f"""
+    <div style="background-color: #111827; padding: 15px; border-radius: 8px; border: 1px solid #1f2937;">
+        <h5 style="color: white; margin-bottom: 10px;">Switch Egress Port: Live Queue State</h5>
+
+        <!-- Queue 7 -->
+        <div style="display: flex; align-items: center; margin-bottom: 15px;">
+            <div style="width: 100px; color: #ff4b4b; font-weight: bold;">Queue 7 (P7)</div>
+            <div style="flex-grow: 1; background-color: #374151; height: 20px; border-radius: 10px; margin: 0 10px; overflow: hidden; border: 1px solid #555;">
+                <div style="width: {q7_fill}%; background-color: #ff4b4b; height: 100%; transition: width 0.3s ease;"></div>
+            </div>
+            <div style="width: 80px; text-align: center; color: {g7_color}; font-weight: bold; border: 1px solid {g7_color}; padding: 2px; border-radius: 4px;">Gate: {g7_text}</div>
+        </div>
+
+        <!-- Queue 0 -->
+        <div style="display: flex; align-items: center;">
+            <div style="width: 100px; color: #faca2b; font-weight: bold;">Queue 0 (P0)</div>
+            <div style="flex-grow: 1; background-color: #374151; height: 20px; border-radius: 10px; margin: 0 10px; overflow: hidden; border: 1px solid #555;">
+                <div style="width: {q0_fill}%; background-color: #faca2b; height: 100%; transition: width 0.3s ease;"></div>
+            </div>
+            <div style="width: 80px; text-align: center; color: {g0_color}; font-weight: bold; border: 1px solid {g0_color}; padding: 2px; border-radius: 4px;">Gate: {g0_text}</div>
+        </div>
+    </div>
+    """
+    return html
+
 
 def write_terminal_log(logs):
     """Wraps text in our custom terminal CSS"""
@@ -417,17 +471,47 @@ if st.session_state.is_running and st.session_state.demo_phase == 0:
     topo_placeholder.plotly_chart(create_network_topology(), use_container_width=True)
     time.sleep(2.0)
 
-    # Phase 1 -> 2: Optimization
+    # Phase 1 -> 2: Optimization (ILP Deep-Dive)
     st.session_state.demo_phase = 2
     update_phase_tracker_ui()
     status_text.warning("Phase 2: Solving TAS Schedules via Integer Linear Programming...")
+
+    def get_math_overlay(c1="🔴", c2="🔴", c3="🔴"):
+        return f"""
+        <div class="metric-card" style="border-left: 5px solid #faca2b;">
+            <h4 style="color:#faca2b;">Mathematical Solver (PuLP ILP) Transparency</h4>
+            <p>Enforcing IEEE 802.1Qbv Constraints:</p>
+            <ul style="list-style-type: none; padding-left: 0; font-family: monospace;">
+                <li>{c1} <strong>Flow Isolation Checked:</strong> Switch egress buffer conflict resolved.</li>
+                <li style="margin-top: 10px;">{c2} <strong>Guard Band Calculated:</strong> 121.76 µs gap secured based on 100Mbps MTU limit.</li>
+                <li style="margin-top: 10px;">{c3} <strong>End-to-End Boundary:</strong> Target path latency locked to &lt; 500 µs.</li>
+            </ul>
+        </div>
+        """
+
     current_logs += "[PuLP] Formulating ILP Constraints...\n"
     log_placeholder.markdown(write_terminal_log(current_logs), unsafe_allow_html=True)
-    time.sleep(1.5)
-    current_logs += "[PuLP] Link Resource & Flow Isolation Constraints satisfied.\n"
-    current_logs += "[PuLP] Calculating required Guard Band... Solved: 121.76 µs.\n"
-    log_placeholder.markdown(write_terminal_log(current_logs), unsafe_allow_html=True)
-    time.sleep(1.5)
+
+    with chart_placeholder.container():
+        math_overlay = st.empty()
+        math_overlay.markdown(get_math_overlay("🔴", "🔴", "🔴"), unsafe_allow_html=True)
+        time.sleep(1.0)
+
+        current_logs += "[PuLP] Validating Buffer Collisions... Done.\n"
+        log_placeholder.markdown(write_terminal_log(current_logs), unsafe_allow_html=True)
+        math_overlay.markdown(get_math_overlay("🟢", "🔴", "🔴"), unsafe_allow_html=True)
+        time.sleep(1.0)
+
+        current_logs += "[PuLP] Calculating required Guard Band... Solved: 121.76 µs.\n"
+        log_placeholder.markdown(write_terminal_log(current_logs), unsafe_allow_html=True)
+        math_overlay.markdown(get_math_overlay("🟢", "🟢", "🔴"), unsafe_allow_html=True)
+        time.sleep(1.0)
+
+        current_logs += "[PuLP] Bounding end-to-end path delay... Optimal Schedule Found.\n"
+        log_placeholder.markdown(write_terminal_log(current_logs), unsafe_allow_html=True)
+        math_overlay.markdown(get_math_overlay("🟢", "🟢", "🟢"), unsafe_allow_html=True)
+        time.sleep(1.5)
+        math_overlay.empty()
 
     # Phase 2 -> 3: Configuration
     st.session_state.demo_phase = 3
@@ -437,6 +521,7 @@ if st.session_state.is_running and st.session_state.demo_phase == 0:
     log_placeholder.markdown(write_terminal_log(current_logs), unsafe_allow_html=True)
     time.sleep(1.0)
     gantt_placeholder.plotly_chart(draw_gantt_chart(), use_container_width=True)
+    queue_buffer_placeholder.markdown(draw_queue_buffers(q0_fill=0, q7_fill=0, gate0_open=True, gate7_open=False), unsafe_allow_html=True)
     current_logs += "[CNC] Deployed Gate Control Lists successfully to SW1, SW2, SW3, SW4.\n"
     log_placeholder.markdown(write_terminal_log(current_logs), unsafe_allow_html=True)
     time.sleep(2.0)
@@ -464,11 +549,11 @@ if st.session_state.is_running and st.session_state.demo_phase == 0:
         p0_latencies.append(current_p0_latency)
         p7_latencies.append(expected_latency)
 
-        # Update glowing metric cards
-        f1_metric.markdown(f"<div class='metric-card glow-text'><strong>Flow 1 (Priority 7) Latency</strong><br><span style='font-size:24px;'>{expected_latency:.2f} µs</span><br><small style='color:lightgreen;'>0.00 µs Jitter (Deterministic)</small></div>", unsafe_allow_html=True)
+        # Update glowing metric cards with explicit Jitter Math
+        f1_metric.markdown(f"<div class='metric-card glow-text'><strong>Flow 1 (Priority 7) Latency</strong><br><span style='font-size:24px;'>{expected_latency:.2f} µs</span><br><small style='color:lightgreen;'><b>Current Jitter:</b> Lat<sub>actual</sub> - Lat<sub>expected</sub> = 0.00 µs</small></div>", unsafe_allow_html=True)
         f2_metric.markdown(f"<div class='metric-card'><strong>Flow 2 (Priority 0) Payload</strong><br><span style='font-size:24px; color:#faca2b;'>{payload:,} Bytes</span><br><small style='color:#faca2b;'>{current_p0_latency:.2f} µs Latency (+{payload - payloads[i-1] if i > 0 else 0} B)</small></div>", unsafe_allow_html=True)
 
-        # Dynamic animated plotting
+        # Dynamic animated plotting (Make sure this exists for Phase 5 to render properly)
         fig = go.Figure()
         fig.add_trace(go.Scatter(
             x=payloads[:i+1], y=p7_latencies,
@@ -506,14 +591,104 @@ if st.session_state.is_running and st.session_state.demo_phase == 0:
         progress_bar.progress(progress)
 
     time.sleep(1.0)
-    current_logs += "[Verification] Live Stress-Test complete. Determinism mathematically and empirically validated.\n"
-    log_placeholder.markdown(write_terminal_log(current_logs), unsafe_allow_html=True)
-    status_text.success("Presentation Complete! The SD-TSN perfectly maintained critical operations despite 100KB+ interference.")
-    st.session_state.final_logs = current_logs
-    st.session_state.is_running = False
 
-    # Rerun to cleanly update the phase tracker to show all phases green/done
-    st.rerun()
+    if st.session_state.slow_mo:
+        current_logs += "[Slow-Mo] Transitioning to Microsecond Slow-Motion view...\n"
+        log_placeholder.markdown(write_terminal_log(current_logs), unsafe_allow_html=True)
+        time.sleep(1.0)
+        st.session_state.demo_phase = 5
+        st.session_state.final_logs = current_logs
+        st.rerun()
+    else:
+        current_logs += "[Verification] Live Stress-Test complete. Determinism mathematically and empirically validated.\n"
+        log_placeholder.markdown(write_terminal_log(current_logs), unsafe_allow_html=True)
+        status_text.success("Presentation Complete! The SD-TSN perfectly maintained critical operations despite 100KB+ interference.")
+        st.session_state.final_logs = current_logs
+        st.session_state.is_running = False
+        # Rerun to cleanly update the phase tracker to show all phases green/done
+        st.rerun()
+
+# --- Phase 5: Microsecond Slow-Motion ---
+if st.session_state.demo_phase == 5:
+    st.session_state.is_running = True # Keep running so things don't glitch
+    status_text.warning("Phase 5: Microsecond Slow-Motion. Analyzing 102.4KB Payload injection at cycle boundary.")
+
+    payloads = [3200, 16000, 32000, 64000, 102400]
+    expected_latency = 345.84
+    final_payload = payloads[-1]
+    final_p0_latency = 1200 + (final_payload * 0.15)
+
+    f1_metric.markdown(f"<div class='metric-card glow-text'><strong>Flow 1 (Priority 7) Latency</strong><br><span style='font-size:24px;'>{expected_latency:.2f} µs</span><br><small style='color:lightgreen;'><b>Current Jitter:</b> Lat<sub>actual</sub> - Lat<sub>expected</sub> = 0.00 µs</small></div>", unsafe_allow_html=True)
+    f2_metric.markdown(f"<div class='metric-card'><strong>Flow 2 (Priority 0) Payload</strong><br><span style='font-size:24px; color:#faca2b;'>{final_payload:,} Bytes</span><br><small style='color:#faca2b;'>{final_p0_latency:.2f} µs Latency (+{(final_payload - payloads[-2]) if len(payloads)>1 else 0} B)</small></div>", unsafe_allow_html=True)
+
+    # Calculate state based on us_clock
+    t = st.session_state.us_clock
+
+    # Basic GCL Rules
+    # t < -121.76: Guard Band (Queue 0 closed, Queue 7 closed)
+    # 0 <= t <= 81.92: Queue 7 Open
+    # t > 81.92: Queue 0 Open again
+
+    gate0_open = False
+    gate7_open = False
+    q0_fill = 0
+    q7_fill = 0
+
+    if t < -121.76:
+        gate0_open = True
+        gate7_open = False
+        q0_fill = 10  # Idle traffic
+        q7_fill = 0
+    elif -121.76 <= t < 0:
+        gate0_open = False
+        gate7_open = False
+        # Queue 0 fills rapidly because 102KB is trying to egress but gate is closed
+        fill_progress = (t + 121.76) / 121.76
+        q0_fill = min(100, 10 + (90 * fill_progress))
+        q7_fill = 100  # Critical packet arrives exactly during guard band
+    elif 0 <= t <= 81.92:
+        gate0_open = False
+        gate7_open = True
+        q0_fill = 100 # Still blocked
+        q7_fill = max(0, 100 - (100 * (t / 81.92))) # Draining
+    else:
+        gate0_open = True
+        gate7_open = False
+        q0_fill = max(0, 100 - (100 * ((t - 81.92) / 200))) # Draining slowly
+        q7_fill = 0
+
+    col_btn1, col_btn2 = st.columns([1, 4])
+    with col_btn1:
+        if st.button("⏭️ Step Forward (+10 µs)"):
+            if st.session_state.us_clock < 250:
+                st.session_state.us_clock += 10.0
+            st.rerun()
+    with col_btn2:
+        if st.button("⏹️ Finish Presentation"):
+            st.session_state.is_running = False
+            st.session_state.demo_phase = 4 # Revert to finished state
+            st.rerun()
+
+    topo_placeholder.plotly_chart(create_network_topology(), use_container_width=True, key="topo_p5")
+
+    # Update chart and buffer dynamically
+    gantt_placeholder.plotly_chart(draw_gantt_chart(current_time=t), use_container_width=True, key="gantt_p5")
+    queue_buffer_placeholder.markdown(draw_queue_buffers(q0_fill=q0_fill, q7_fill=q7_fill, gate0_open=gate0_open, gate7_open=gate7_open), unsafe_allow_html=True)
+
+    log_msg = st.session_state.final_logs + f"\n[Clock] Current Time: {t:.2f} µs | P0 Gate: {'OPEN' if gate0_open else 'CLOSED'} | P7 Gate: {'OPEN' if gate7_open else 'CLOSED'}"
+    log_placeholder.markdown(write_terminal_log(log_msg), unsafe_allow_html=True)
+
+    # Render line chart statically as it was
+    payloads = [3200, 16000, 32000, 64000, 102400]
+    expected_latency = 345.84
+    p7_latencies = [expected_latency] * len(payloads)
+    p0_latencies = [1200 + (p * 0.15) for p in payloads]
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=payloads, y=p7_latencies, mode='lines+markers', name='Flow 1: Mission-Critical', line=dict(color='#ff4b4b', width=4), marker=dict(size=10)))
+    fig.add_trace(go.Scatter(x=payloads, y=p0_latencies, mode='lines+markers', name='Flow 2: Interference', line=dict(color='#faca2b', width=3, dash='dash'), marker=dict(size=10), yaxis='y2'))
+    fig.update_layout(title=dict(text="Real-Time End-to-End Latency vs. Interference Payload", font=dict(color='white')), xaxis=dict(title=dict(text="Flow 2 Payload Size (Bytes)", font=dict(color='white')), type="category", tickfont=dict(color='white')), yaxis=dict(title=dict(text="Flow 1 Latency (µs)", font=dict(color="#ff4b4b")), tickfont=dict(color="#ff4b4b"), range=[0, 1000]), yaxis2=dict(title=dict(text="Flow 2 Latency (µs)", font=dict(color="#faca2b")), tickfont=dict(color="#faca2b"), overlaying='y', side='right', range=[0, max(20000, 1200 + (payloads[-1] * 0.15) * 1.2)]), legend=dict(x=0.01, y=0.99, bgcolor='rgba(0,0,0,0.5)', font=dict(color='white')), plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', margin=dict(l=40, r=40, t=40, b=40), height=300)
+    chart_placeholder.plotly_chart(fig, use_container_width=True, key="chart_p5")
+
 
 # Persist visual elements if phase completes
 if not st.session_state.is_running and st.session_state.demo_phase == 4:
