@@ -56,12 +56,13 @@ class SwitchPort:
     Handles distinct priority queues and mathematically enforces the Gate Control List (GCL) transmission timings.
     """
     def __init__(self, env: simpy.Environment, node_name: str, port_id: int,
-                 gcl_events: List[Dict], cycle_time: int, speed_mbps: int = 100):
+                 gcl_events: List[Dict], cycle_time: int, speed_mbps: int = 100, tas_enabled: bool = True):
         self.env = env
         self.node_name = node_name
         self.port_id = port_id
         self.gcl_events = gcl_events
         self.cycle_time = cycle_time
+        self.tas_enabled = tas_enabled
 
         # 100 Mbps transmission rate
         self.rate_bps = speed_mbps * 1_000_000
@@ -85,12 +86,16 @@ class SwitchPort:
             self.env.process(self.queue_processor(prio))
 
     def _is_gate_open(self, priority: int) -> bool:
+        if not self.tas_enabled:
+            return True
         # Prio 7 is index 0 in string, Prio 0 is index 7
         idx = 7 - priority
         return self.gate_status[idx] == '1'
 
     def _get_time_until_gate_closes(self, priority: int) -> float:
         """Helper to find out how much time is left until this gate closes."""
+        if not self.tas_enabled:
+            return float('inf')
         idx = 7 - priority
         if self.gate_status[idx] == '0':
             return 0.0
@@ -110,6 +115,15 @@ class SwitchPort:
 
     def gcl_controller(self):
         """Changes the gate statuses according to the GCL schedule."""
+        if not self.tas_enabled:
+            self.gate_status = "11111111"
+            # Signal all gates open
+            for prio in range(8):
+                if not self.gate_open_events[prio].triggered:
+                    self.gate_open_events[prio].succeed()
+                    self.gate_open_events[prio] = simpy.Event(self.env)
+            yield self.env.event()
+
         if not self.gcl_events:
             # If no GCL configured for this port, leave gates open for all traffic conceptually
             # but strictly based on problem, default is 00000001 (Prio 0 open, others closed)
@@ -242,12 +256,18 @@ class Switch:
             port_events = gcl_config.get(name, {}).get(port_id, [])
             cycle_time = simulator.hyper_period
 
-            sp = SwitchPort(env, name, port_id, port_events, cycle_time)
+            sp = SwitchPort(env, name, port_id, port_events, cycle_time, tas_enabled=simulator.tas_enabled)
             sp.parent_switch = self
             self.ports[port_id] = sp
 
     def process_arrival(self, packet: Packet):
         """Handles a packet arriving at the switch."""
+        # Rogue Node Security check
+        if self.simulator.attack_active and self.name == "SW1":
+            if packet.priority == 7 and packet.flow.source == "MockAttacker":
+                self.simulator.dropped_spoofed_packets += 1
+                return # Drop packet immediately (don't forward to egress port)
+
         # Simulate processing delay
         yield self.env.timeout(self.d_proc)
 
@@ -274,12 +294,16 @@ class Switch:
         self.simulator.send_packet(packet, self.name)
 
 class TSNSimulator:
-    def __init__(self, topology: Topology, routing, gcl_config: Dict, hyper_period: int):
+    def __init__(self, topology: Topology, routing, gcl_config: Dict, hyper_period: int, tas_enabled: bool = True, attack_active: bool = False):
         self.env = simpy.Environment()
         self.topology = topology
         self.routing = routing
         self.gcl_config = gcl_config
         self.hyper_period = hyper_period
+        self.tas_enabled = tas_enabled
+        self.attack_active = attack_active
+
+        self.dropped_spoofed_packets = 0
 
         self.nodes = {}
         self.latencies = {} # Flow_id -> List of latencies
