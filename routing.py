@@ -45,7 +45,10 @@ class CNCRouting:
         return port_map
 
     def compute_routes(self, flows: List[Flow]) -> Dict[str, List[str]]:
-        """Computes shortest path for each flow."""
+        """
+        Computes the shortest physical path through the network for each flow.
+        Uses NetworkX Dijkstra's algorithm to find the optimal route from source to destination.
+        """
         routes = {}
         for flow in flows:
             path = self.topology.get_shortest_path(flow.source, flow.destination)

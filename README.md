@@ -59,22 +59,27 @@ Running the core simulation generates two primary artifacts automatically saved 
 
 ---
 
-## Interactive Guided Presentation Dashboard (Phase 2)
+## Interactive Guided Presentation Dashboard (Phase 2 & 3)
 
-A professional, interactive dashboard built with Streamlit (`app.py`) serves as the primary presentation layer for audiences. It transforms the raw backend data into a highly visual, phase-based engineering presentation.
+A professional, interactive dashboard built with Streamlit (`app.py`) serves as the primary presentation layer for audiences. It transforms the raw backend data into a highly visual, phase-based engineering presentation, completely driven by live backend computations.
 
 ### Dashboard Features (`app.py`)
 
-*   **Sequential Live Demo Logic:** A "▶️ Start Live Demo" button triggers a fully animated state machine that guides the audience through the four critical engineering phases:
+*   **Sequential Live Demo Logic:** A "▶️ Start Live Demo" button triggers a fully animated state machine that guides the audience through the critical engineering phases:
     1.  **🟢 Discovery:** Dynamically mapping the topology and flows.
-    2.  **🟡 Optimization (ILP):** Mathematically solving the Time-Aware Shaper (TAS) scheduling constraints.
-    3.  **🟠 Configuration:** Compiling the YANG-style XML and deploying the Gate Control Lists to the switches.
-    4.  **🔴 Live Stress-Test:** Running a live background interference loop (3.2KB to 102.4KB payloads).
-*   **Enhanced Topology Map:** A customized NetworkX/Plotly graph emphasizing a glowing red critical route (Flow 1) and a dashed amber background route (Flow 2).
-*   **Live Metrics:** Dynamic, glowing `st.metric` cards verifying the strict 345.84 µs latency bound and 0.00 µs jitter for Flow 1 in real-time.
-*   **Animated Results Chart:** A dual-axis Plotly line graph that draws the Latency vs. Payload Load stress-test results point-by-point.
-*   **"Smart Gate" Gantt Chart:** A Plotly Gantt chart visualizing the switch egress schedule. It explicitly highlights the 121.76 µs Guard Band in dark red, featuring hover tooltips explaining how the safety gap prevents "delivery trucks from blocking the ambulance."
-*   **Simulated Terminal Logs:** A real-time scrolling code-block that streams technical backend execution updates (e.g., "[CNC] Deploying Gate Control List...", "[SimPy] Injecting 102,400 Bytes...") synchronized perfectly with the visual phases.
+    2.  **🟡 Optimization (ILP):** Mathematically solving the Time-Aware Shaper (TAS) scheduling constraints. Features a dynamic **"X-Ray" Transparency Checklist** that proves Flow Isolation, Guard Band, and Boundary constraints as they are solved by PuLP.
+    3.  **🟠 Configuration:** Compiling the YANG-style XML and deploying the Gate Control Lists to the switches. Features a live Gantt Chart and visual HTML/CSS **Live Queue Buffer Progress Bars**.
+    4.  **🔴 Live Stress-Test:** Actively calls the SimPy discrete-event engine (`simulator.py`) to loop through escalating background interference loads, plotting the exact calculated latencies point-by-point on a dual-axis Plotly graph.
+    5.  **🟣 Microsecond Slow-Motion:** A deep-dive interactive mode allowing users to step forward (+10 µs increments) through a single network cycle. Watch physical MTU fragmentation cause Priority 0 queues to back up against the Guard Band, while the Priority 7 payload sails through with exactly 0.00 µs jitter.
+
+### Dynamic Backend Integration & Controls
+
+The dashboard is no longer hardcoded. All visuals and metrics are driven dynamically by the `scheduler.py` and `simulator.py` modules.
+Using the **Simulation Settings Sidebar**, users can adjust:
+*   **Critical Payload Size (Bytes):** Slide from 128B up to 1500B to see the ILP dynamically resize the required Priority 7 transmission window (`t_trans`).
+*   **Interference Payload Max (Bytes):** Slide from 1,000B up to 150,000B to define the severity of the SimPy stress test in Phase 4.
+
+When "Start Live Demo" is clicked, `app.py` recalculates the precise Guard Band requirements using PuLP, regenerates the GCL, and executes the physical layer SimPy validation in real-time.
 
 ---
 

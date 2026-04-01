@@ -19,6 +19,13 @@ import plotly.graph_objects as go
 import plotly.express as px
 import networkx as nx
 
+from models import Topology, Flow
+from cuc import MockCUC
+from routing import CNCRouting
+from scheduler import ILPScheduler
+from gcl import GCLGenerator
+from simulator import TSNSimulator
+
 st.set_page_config(
     page_title="SD-TSN Presentation Dashboard",
     page_icon="🚗",
@@ -87,8 +94,90 @@ if 'slow_mo' not in st.session_state:
 if 'us_clock' not in st.session_state:
     st.session_state.us_clock = -50.0
 
+# Store backend calculation results to persist across UI reruns
+if 'backend_results' not in st.session_state:
+    st.session_state.backend_results = {}
+
 st.sidebar.title("Simulation Settings")
+critical_payload_size = st.sidebar.slider("Critical Payload Size (Bytes)", min_value=128, max_value=1500, value=1024, step=128, help="Size of the Mission-Critical Prio 7 Flow")
+interference_max_payload = st.sidebar.slider("Interference Payload Max (Bytes)", min_value=1000, max_value=150000, value=102400, step=1000, help="Maximum background traffic injected in Phase 4")
 st.session_state.slow_mo = st.sidebar.toggle("Enable Microsecond Slow-Mo", value=st.session_state.slow_mo, help="Pause at the maximum payload and manually step through the TAS scheduling.")
+
+@st.cache_data(show_spinner=False)
+def calculate_ilp_schedule(f1_payload):
+    """Cached wrapper to run the PuLP ILP solver so it doesn't re-run on every UI update."""
+    topo = Topology()
+    cuc = MockCUC()
+    base_flows = cuc.generate_test_flows()
+
+    # Override Flow 1 with the user slider value
+    for f in base_flows:
+        if f.flow_id == "Flow1":
+            f.payload_size = f1_payload
+
+    routing = CNCRouting(topo)
+    routes = routing.compute_routes(base_flows)
+
+    scheduler = ILPScheduler(topo, routes)
+    flow1 = next(f for f in base_flows if f.flow_id == "Flow1")
+
+    schedule = scheduler.schedule_flow(flow1)
+    t_trans = scheduler.transmission_duration(flow1.payload_size)
+
+    gcl_gen = GCLGenerator(topo, routing.port_map)
+    hyper_period = gcl_gen.calculate_hyper_period(base_flows)
+    gcl_config = gcl_gen.generate_gcl(schedule, t_trans, hyper_period, flow1.period)
+
+    # Calculate expected latency based on ILP mathematical model
+    path = routes[flow1.flow_id]
+    first_edge = (path[0], path[1])
+    last_edge = (path[-2], path[-1])
+    expected_latency = schedule[last_edge] + t_trans - schedule[first_edge]
+
+    # Guard band needs to block MTU at 100Mbps
+    # 1522 bytes * 8 bits / 100Mbps = 121.76 us
+    guard_band = scheduler.guard_band
+
+    return {
+        "schedule": schedule,
+        "t_trans": t_trans,
+        "expected_latency": expected_latency,
+        "guard_band": guard_band,
+        "gcl_config": gcl_config,
+        "hyper_period": hyper_period,
+        "routes": routes
+    }
+
+def run_sim_iteration(f1_payload, f2_payload, gcl_config, hyper_period):
+    """Wrapper to run a single iteration of the SimPy environment."""
+    topo = Topology()
+    cuc = MockCUC()
+    base_flows = cuc.generate_test_flows()
+
+    flows = []
+    for f in base_flows:
+        if f.flow_id == "Flow1":
+            f.payload_size = f1_payload
+            flows.append(f)
+        elif f.flow_id == "Flow2":
+            f.payload_size = f2_payload
+            flows.append(f)
+
+    routing = CNCRouting(topo)
+
+    sim = TSNSimulator(topo, routing, gcl_config, hyper_period)
+    for flow in flows:
+        sim.start_flow(flow)
+
+    sim.run(200000) # Run for 200ms
+
+    f1_latencies = sim.latencies.get("Flow1", [])
+    f2_latencies = sim.latencies.get("Flow2", [])
+
+    f1_avg = sum(f1_latencies) / len(f1_latencies) if f1_latencies else 0
+    f2_avg = sum(f2_latencies) / len(f2_latencies) if f2_latencies else 0
+
+    return f1_avg, f2_avg
 
 def render_phase_tracker():
     phases = [
@@ -271,6 +360,8 @@ def create_network_topology():
 def run_simulation():
     st.session_state.is_running = True
     st.session_state.demo_phase = 0
+    # Clear out old backend results so we rerun
+    st.session_state.backend_results = {}
 
 # UI Layout Placeholder
 col1, col2 = st.columns([1, 1])
@@ -322,14 +413,20 @@ log_placeholder = st.empty()
 if not st.session_state.is_running and st.session_state.demo_phase == 0:
     log_placeholder.markdown("<div class='terminal-window' id='terminal_out'>user@cnc-server:~$ waiting for demo initialization...<span class='cursor'>_</span></div>", unsafe_allow_html=True)
 
-def draw_gantt_chart(current_time=None):
-    # Pre-computed deterministic GCL schedule based on PuLP ILP Output
+def draw_gantt_chart(current_time=None, ilp_results=None):
+    # Retrieve backend metrics dynamically if available
+    guard_band = 121.76
+    t_trans = 81.92
+
+    if ilp_results:
+        guard_band = ilp_results.get('guard_band', guard_band)
+        t_trans = ilp_results.get('t_trans', t_trans)
+    elif 'backend_results' in st.session_state and 'guard_band' in st.session_state.backend_results:
+        guard_band = st.session_state.backend_results['guard_band']
+        t_trans = st.session_state.backend_results['t_trans']
+
     # Period: 50,000 µs (50ms)
-    # Transmission times
-    flow1_p7_start = 0.0
-    flow1_p7_end = 81.92  # 1024 bytes @ 100Mbps
-    guard_band_start = 50000.0 - 121.76
-    guard_band_end = 50000.0
+    hyper_period = 50000.0
 
     # We'll just show the first 250 µs of the cycle to highlight the scheduling
     fig = go.Figure()
@@ -338,7 +435,7 @@ def draw_gantt_chart(current_time=None):
     fig.add_trace(go.Bar(
         y=['Queue 0 (Best Effort)'],
         x=[200], # Open after guard band / P7
-        base=[100],
+        base=[t_trans + 18.08], # Open slightly after P7 finishes
         orientation='h',
         marker=dict(color='orange'),
         name='P0 Open',
@@ -349,36 +446,36 @@ def draw_gantt_chart(current_time=None):
     # Priority 7 Queue
     fig.add_trace(go.Bar(
         y=['Queue 7 (Time-Sensitive)'],
-        x=[81.92], # Time to transmit
+        x=[t_trans], # Time to transmit
         base=[0],
         orientation='h',
         marker=dict(color='red'),
         name='P7 Open',
-        text='P7 Transmission (81.92 µs)',
+        text=f'P7 Transmission ({t_trans:.2f} µs)',
         hoverinfo='text'
     ))
 
     # Guard Band
     fig.add_trace(go.Bar(
         y=['Queue 0 (Best Effort)'],
-        x=[121.76],
-        base=[-121.76 + 50000],
+        x=[guard_band],
+        base=[-guard_band + hyper_period],
         orientation='h',
         marker=dict(color='#8B0000', pattern_shape="/"),
         name='Guard Band',
-        hovertext='<b>Guard Band (121.76 µs)</b><br>This safety gap prevents delivery trucks (P0)<br>from blocking the ambulance (P7).',
+        hovertext=f'<b>Guard Band ({guard_band:.2f} µs)</b><br>This safety gap prevents delivery trucks (P0)<br>from blocking the ambulance (P7).',
         hoverinfo='text'
     ))
 
     # To make the Gantt look coherent, let's plot a relative window from -150us to +300us
     fig.add_trace(go.Bar(
         y=['Queue 0 (Best Effort)'],
-        x=[121.76],
-        base=[-121.76],
+        x=[guard_band],
+        base=[-guard_band],
         orientation='h',
         marker=dict(color='#8B0000', pattern_shape="/"),
         name='Guard Band',
-        hovertext='<b>Guard Band (121.76 µs)</b><br>This safety gap prevents delivery trucks (P0)<br>from blocking the ambulance (P7).',
+        hovertext=f'<b>Guard Band ({guard_band:.2f} µs)</b><br>This safety gap prevents delivery trucks (P0)<br>from blocking the ambulance (P7).',
         hoverinfo='text',
         showlegend=False
     ))
@@ -464,17 +561,27 @@ if st.session_state.is_running and st.session_state.demo_phase == 0:
     log_placeholder.markdown(write_terminal_log(current_logs), unsafe_allow_html=True)
     status_text.info("Phase 1: Discovering Network Topology and Flows...")
     time.sleep(1.0)
-    current_logs += "[Discovery] Scanning zonal architecture... Found 8 nodes, 7 links.\n"
-    current_logs += "[CUC] Identified Flow 1: Mission-Critical (Prio 7).\n"
-    current_logs += "[CUC] Identified Flow 2: Best-Effort Interference (Prio 0).\n"
+    current_logs += f"[Discovery] Scanning zonal architecture... Found 8 nodes, 7 links.\n"
+    current_logs += f"[CUC] Identified Flow 1: Mission-Critical (Prio 7), Payload: {critical_payload_size} Bytes.\n"
+    current_logs += f"[CUC] Identified Flow 2: Best-Effort Interference (Prio 0), Max Payload: {interference_max_payload} Bytes.\n"
     log_placeholder.markdown(write_terminal_log(current_logs), unsafe_allow_html=True)
     topo_placeholder.plotly_chart(create_network_topology(), use_container_width=True)
-    time.sleep(2.0)
+    time.sleep(1.0)
 
     # Phase 1 -> 2: Optimization (ILP Deep-Dive)
     st.session_state.demo_phase = 2
     update_phase_tracker_ui()
     status_text.warning("Phase 2: Solving TAS Schedules via Integer Linear Programming...")
+
+    current_logs += "[PuLP] Formulating ILP Constraints...\n"
+    log_placeholder.markdown(write_terminal_log(current_logs), unsafe_allow_html=True)
+
+    # Trigger actual backend calculation
+    ilp_results = calculate_ilp_schedule(critical_payload_size)
+    st.session_state.backend_results = ilp_results
+
+    guard_band_val = ilp_results['guard_band']
+    expected_latency = ilp_results['expected_latency']
 
     def get_math_overlay(c1="🔴", c2="🔴", c3="🔴"):
         return f"""
@@ -483,14 +590,11 @@ if st.session_state.is_running and st.session_state.demo_phase == 0:
             <p>Enforcing IEEE 802.1Qbv Constraints:</p>
             <ul style="list-style-type: none; padding-left: 0; font-family: monospace;">
                 <li>{c1} <strong>Flow Isolation Checked:</strong> Switch egress buffer conflict resolved.</li>
-                <li style="margin-top: 10px;">{c2} <strong>Guard Band Calculated:</strong> 121.76 µs gap secured based on 100Mbps MTU limit.</li>
-                <li style="margin-top: 10px;">{c3} <strong>End-to-End Boundary:</strong> Target path latency locked to &lt; 500 µs.</li>
+                <li style="margin-top: 10px;">{c2} <strong>Guard Band Calculated:</strong> {guard_band_val:.2f} µs gap secured based on 100Mbps MTU limit.</li>
+                <li style="margin-top: 10px;">{c3} <strong>End-to-End Boundary:</strong> Target path latency locked to {expected_latency:.2f} µs.</li>
             </ul>
         </div>
         """
-
-    current_logs += "[PuLP] Formulating ILP Constraints...\n"
-    log_placeholder.markdown(write_terminal_log(current_logs), unsafe_allow_html=True)
 
     with chart_placeholder.container():
         math_overlay = st.empty()
@@ -502,12 +606,12 @@ if st.session_state.is_running and st.session_state.demo_phase == 0:
         math_overlay.markdown(get_math_overlay("🟢", "🔴", "🔴"), unsafe_allow_html=True)
         time.sleep(1.0)
 
-        current_logs += "[PuLP] Calculating required Guard Band... Solved: 121.76 µs.\n"
+        current_logs += f"[PuLP] Calculating required Guard Band... Solved: {guard_band_val:.2f} µs.\n"
         log_placeholder.markdown(write_terminal_log(current_logs), unsafe_allow_html=True)
         math_overlay.markdown(get_math_overlay("🟢", "🟢", "🔴"), unsafe_allow_html=True)
         time.sleep(1.0)
 
-        current_logs += "[PuLP] Bounding end-to-end path delay... Optimal Schedule Found.\n"
+        current_logs += f"[PuLP] Bounding end-to-end path delay... Solved: {expected_latency:.2f} µs.\n"
         log_placeholder.markdown(write_terminal_log(current_logs), unsafe_allow_html=True)
         math_overlay.markdown(get_math_overlay("🟢", "🟢", "🟢"), unsafe_allow_html=True)
         time.sleep(1.5)
@@ -531,27 +635,37 @@ if st.session_state.is_running and st.session_state.demo_phase == 0:
     update_phase_tracker_ui()
     status_text.error("Phase 4: Running SimPy Live Stress-Test. Injecting massive interference.")
 
-    payloads = [3200, 16000, 32000, 64000, 102400]
-    expected_latency = 345.84 # Strict deterministic value
-    base_latency_p0 = 1200
+    # Calculate step payload amounts dynamically based on max value
+    step_size = interference_max_payload // 5
+    payloads = [step_size * (i+1) for i in range(5)]
+    # Ensure exact max is the final point
+    payloads[-1] = interference_max_payload
+
+    expected_latency = st.session_state.backend_results['expected_latency']
+    gcl_config = st.session_state.backend_results['gcl_config']
+    hyper_period = st.session_state.backend_results['hyper_period']
+
     p0_latencies = []
     p7_latencies = []
 
     progress_bar = st.progress(0)
 
     for i, payload in enumerate(payloads):
-        time.sleep(0.8)
-        current_logs += f"[SimPy] Stress Test Iteration {i+1}/5: Injecting {payload:,} Bytes of Prio 0 Traffic...\n"
+        current_logs += f"[SimPy] Running discrete-event iteration {i+1}/5: Injecting {payload:,} Bytes of Prio 0 Traffic...\n"
         log_placeholder.markdown(write_terminal_log(current_logs), unsafe_allow_html=True)
-        time.sleep(0.5)
 
-        current_p0_latency = base_latency_p0 + (payload * 0.15)
+        with st.spinner(f"Executing SimPy core for {payload} Bytes..."):
+            f1_avg, f2_avg = run_sim_iteration(critical_payload_size, payload, gcl_config, hyper_period)
+
+        current_p0_latency = f2_avg
         p0_latencies.append(current_p0_latency)
-        p7_latencies.append(expected_latency)
+        p7_latencies.append(f1_avg)
+
+        jitter = f1_avg - expected_latency
 
         # Update glowing metric cards with explicit Jitter Math
-        f1_metric.markdown(f"<div class='metric-card glow-text'><strong>Flow 1 (Priority 7) Latency</strong><br><span style='font-size:24px;'>{expected_latency:.2f} µs</span><br><small style='color:lightgreen;'><b>Current Jitter:</b> Lat<sub>actual</sub> - Lat<sub>expected</sub> = 0.00 µs</small></div>", unsafe_allow_html=True)
-        f2_metric.markdown(f"<div class='metric-card'><strong>Flow 2 (Priority 0) Payload</strong><br><span style='font-size:24px; color:#faca2b;'>{payload:,} Bytes</span><br><small style='color:#faca2b;'>{current_p0_latency:.2f} µs Latency (+{payload - payloads[i-1] if i > 0 else 0} B)</small></div>", unsafe_allow_html=True)
+        f1_metric.markdown(f"<div class='metric-card glow-text'><strong>Flow 1 (Priority 7) Latency</strong><br><span style='font-size:24px;'>{f1_avg:.2f} µs</span><br><small style='color:lightgreen;'><b>Current Jitter:</b> Lat<sub>actual</sub> - Lat<sub>expected</sub> = {jitter:.2f} µs</small></div>", unsafe_allow_html=True)
+        f2_metric.markdown(f"<div class='metric-card'><strong>Flow 2 (Priority 0) Payload</strong><br><span style='font-size:24px; color:#faca2b;'>{payload:,} Bytes</span><br><small style='color:#faca2b;'>{current_p0_latency:.2f} µs Latency (+{(payload - payloads[i-1]) if i > 0 else 0} B)</small></div>", unsafe_allow_html=True)
 
         # Dynamic animated plotting (Make sure this exists for Phase 5 to render properly)
         fig = go.Figure()
@@ -584,11 +698,16 @@ if st.session_state.is_running and st.session_state.demo_phase == 0:
         )
         chart_placeholder.plotly_chart(fig, use_container_width=True)
 
-        current_logs += f"[Result] Iteration {i+1} complete: Prio 7 Latency locked at {expected_latency} µs.\n"
+        current_logs += f"[Result] Iteration {i+1} complete: Prio 7 Latency locked at {f1_avg:.2f} µs.\n"
         log_placeholder.markdown(write_terminal_log(current_logs), unsafe_allow_html=True)
 
         progress = (i + 1) / len(payloads)
         progress_bar.progress(progress)
+
+    # Store dynamic latencies for Phase 5 to render
+    st.session_state.backend_results['payloads'] = payloads
+    st.session_state.backend_results['p7_latencies'] = p7_latencies
+    st.session_state.backend_results['p0_latencies'] = p0_latencies
 
     time.sleep(1.0)
 
@@ -611,50 +730,56 @@ if st.session_state.is_running and st.session_state.demo_phase == 0:
 # --- Phase 5: Microsecond Slow-Motion ---
 if st.session_state.demo_phase == 5:
     st.session_state.is_running = True # Keep running so things don't glitch
-    status_text.warning("Phase 5: Microsecond Slow-Motion. Analyzing 102.4KB Payload injection at cycle boundary.")
 
-    payloads = [3200, 16000, 32000, 64000, 102400]
-    expected_latency = 345.84
+    # Retrieve backend metrics
+    payloads = st.session_state.backend_results.get('payloads', [1000])
+    p7_latencies = st.session_state.backend_results.get('p7_latencies', [0.0])
+    p0_latencies = st.session_state.backend_results.get('p0_latencies', [0.0])
+    expected_latency = st.session_state.backend_results.get('expected_latency', 0.0)
+    guard_band = st.session_state.backend_results.get('guard_band', 121.76)
+    t_trans = st.session_state.backend_results.get('t_trans', 81.92)
+
     final_payload = payloads[-1]
-    final_p0_latency = 1200 + (final_payload * 0.15)
+    final_p0_latency = p0_latencies[-1]
+    final_f1_latency = p7_latencies[-1]
+    jitter = final_f1_latency - expected_latency
 
-    f1_metric.markdown(f"<div class='metric-card glow-text'><strong>Flow 1 (Priority 7) Latency</strong><br><span style='font-size:24px;'>{expected_latency:.2f} µs</span><br><small style='color:lightgreen;'><b>Current Jitter:</b> Lat<sub>actual</sub> - Lat<sub>expected</sub> = 0.00 µs</small></div>", unsafe_allow_html=True)
+    status_text.warning(f"Phase 5: Microsecond Slow-Motion. Analyzing {final_payload:,} Bytes Payload injection at cycle boundary.")
+
+    f1_metric.markdown(f"<div class='metric-card glow-text'><strong>Flow 1 (Priority 7) Latency</strong><br><span style='font-size:24px;'>{final_f1_latency:.2f} µs</span><br><small style='color:lightgreen;'><b>Current Jitter:</b> Lat<sub>actual</sub> - Lat<sub>expected</sub> = {jitter:.2f} µs</small></div>", unsafe_allow_html=True)
     f2_metric.markdown(f"<div class='metric-card'><strong>Flow 2 (Priority 0) Payload</strong><br><span style='font-size:24px; color:#faca2b;'>{final_payload:,} Bytes</span><br><small style='color:#faca2b;'>{final_p0_latency:.2f} µs Latency (+{(final_payload - payloads[-2]) if len(payloads)>1 else 0} B)</small></div>", unsafe_allow_html=True)
 
     # Calculate state based on us_clock
     t = st.session_state.us_clock
 
-    # Basic GCL Rules
-    # t < -121.76: Guard Band (Queue 0 closed, Queue 7 closed)
-    # 0 <= t <= 81.92: Queue 7 Open
-    # t > 81.92: Queue 0 Open again
+    # Basic GCL Rules dynamic based on Guard Band and T_trans
 
     gate0_open = False
     gate7_open = False
     q0_fill = 0
     q7_fill = 0
 
-    if t < -121.76:
+    if t < -guard_band:
         gate0_open = True
         gate7_open = False
         q0_fill = 10  # Idle traffic
         q7_fill = 0
-    elif -121.76 <= t < 0:
+    elif -guard_band <= t < 0:
         gate0_open = False
         gate7_open = False
-        # Queue 0 fills rapidly because 102KB is trying to egress but gate is closed
-        fill_progress = (t + 121.76) / 121.76
+        # Queue 0 fills rapidly because data is trying to egress but gate is closed
+        fill_progress = (t + guard_band) / guard_band
         q0_fill = min(100, 10 + (90 * fill_progress))
         q7_fill = 100  # Critical packet arrives exactly during guard band
-    elif 0 <= t <= 81.92:
+    elif 0 <= t <= t_trans:
         gate0_open = False
         gate7_open = True
         q0_fill = 100 # Still blocked
-        q7_fill = max(0, 100 - (100 * (t / 81.92))) # Draining
+        q7_fill = max(0, 100 - (100 * (t / t_trans))) # Draining
     else:
         gate0_open = True
         gate7_open = False
-        q0_fill = max(0, 100 - (100 * ((t - 81.92) / 200))) # Draining slowly
+        q0_fill = max(0, 100 - (100 * ((t - t_trans) / 200))) # Draining slowly
         q7_fill = 0
 
     col_btn1, col_btn2 = st.columns([1, 4])
@@ -679,14 +804,10 @@ if st.session_state.demo_phase == 5:
     log_placeholder.markdown(write_terminal_log(log_msg), unsafe_allow_html=True)
 
     # Render line chart statically as it was
-    payloads = [3200, 16000, 32000, 64000, 102400]
-    expected_latency = 345.84
-    p7_latencies = [expected_latency] * len(payloads)
-    p0_latencies = [1200 + (p * 0.15) for p in payloads]
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=payloads, y=p7_latencies, mode='lines+markers', name='Flow 1: Mission-Critical', line=dict(color='#ff4b4b', width=4), marker=dict(size=10)))
     fig.add_trace(go.Scatter(x=payloads, y=p0_latencies, mode='lines+markers', name='Flow 2: Interference', line=dict(color='#faca2b', width=3, dash='dash'), marker=dict(size=10), yaxis='y2'))
-    fig.update_layout(title=dict(text="Real-Time End-to-End Latency vs. Interference Payload", font=dict(color='white')), xaxis=dict(title=dict(text="Flow 2 Payload Size (Bytes)", font=dict(color='white')), type="category", tickfont=dict(color='white')), yaxis=dict(title=dict(text="Flow 1 Latency (µs)", font=dict(color="#ff4b4b")), tickfont=dict(color="#ff4b4b"), range=[0, 1000]), yaxis2=dict(title=dict(text="Flow 2 Latency (µs)", font=dict(color="#faca2b")), tickfont=dict(color="#faca2b"), overlaying='y', side='right', range=[0, max(20000, 1200 + (payloads[-1] * 0.15) * 1.2)]), legend=dict(x=0.01, y=0.99, bgcolor='rgba(0,0,0,0.5)', font=dict(color='white')), plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', margin=dict(l=40, r=40, t=40, b=40), height=300)
+    fig.update_layout(title=dict(text="Real-Time End-to-End Latency vs. Interference Payload", font=dict(color='white')), xaxis=dict(title=dict(text="Flow 2 Payload Size (Bytes)", font=dict(color='white')), type="category", tickfont=dict(color='white')), yaxis=dict(title=dict(text="Flow 1 Latency (µs)", font=dict(color="#ff4b4b")), tickfont=dict(color="#ff4b4b"), range=[0, max(1000, expected_latency * 1.5)]), yaxis2=dict(title=dict(text="Flow 2 Latency (µs)", font=dict(color="#faca2b")), tickfont=dict(color="#faca2b"), overlaying='y', side='right', range=[0, max(20000, p0_latencies[-1] * 1.2)]), legend=dict(x=0.01, y=0.99, bgcolor='rgba(0,0,0,0.5)', font=dict(color='white')), plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', margin=dict(l=40, r=40, t=40, b=40), height=300)
     chart_placeholder.plotly_chart(fig, use_container_width=True, key="chart_p5")
 
 
@@ -696,18 +817,20 @@ if not st.session_state.is_running and st.session_state.demo_phase == 4:
     gantt_placeholder.plotly_chart(draw_gantt_chart(), use_container_width=True, key="gantt_persist")
 
     # Restore metrics
-    payloads = [3200, 16000, 32000, 64000, 102400]
-    expected_latency = 345.84
-    final_payload = payloads[-1]
-    final_p0_latency = 1200 + (final_payload * 0.15)
+    payloads = st.session_state.backend_results.get('payloads', [1000])
+    p7_latencies = st.session_state.backend_results.get('p7_latencies', [0.0])
+    p0_latencies = st.session_state.backend_results.get('p0_latencies', [0.0])
+    expected_latency = st.session_state.backend_results.get('expected_latency', 0.0)
 
-    f1_metric.markdown(f"<div class='metric-card glow-text'><strong>Flow 1 (Priority 7) Latency</strong><br><span style='font-size:24px;'>{expected_latency:.2f} µs</span><br><small style='color:lightgreen;'>0.00 µs Jitter (Deterministic)</small></div>", unsafe_allow_html=True)
+    final_payload = payloads[-1]
+    final_p0_latency = p0_latencies[-1]
+    final_f1_latency = p7_latencies[-1]
+    jitter = final_f1_latency - expected_latency
+
+    f1_metric.markdown(f"<div class='metric-card glow-text'><strong>Flow 1 (Priority 7) Latency</strong><br><span style='font-size:24px;'>{final_f1_latency:.2f} µs</span><br><small style='color:lightgreen;'>{jitter:.2f} µs Jitter</small></div>", unsafe_allow_html=True)
     f2_metric.markdown(f"<div class='metric-card'><strong>Flow 2 (Priority 0) Payload</strong><br><span style='font-size:24px; color:#faca2b;'>{final_payload:,} Bytes</span><br><small style='color:#faca2b;'>{final_p0_latency:.2f} µs Latency (+{(final_payload - payloads[-2]) if len(payloads)>1 else 0} B)</small></div>", unsafe_allow_html=True)
 
     # Restore chart
-    p7_latencies = [expected_latency] * len(payloads)
-    p0_latencies = [1200 + (p * 0.15) for p in payloads]
-
     fig = go.Figure()
     fig.add_trace(go.Scatter(
         x=payloads, y=p7_latencies,
