@@ -128,6 +128,9 @@ def calculate_ilp_schedule(f1_payload):
     hyper_period = gcl_gen.calculate_hyper_period(base_flows)
     gcl_config = gcl_gen.generate_gcl(schedule, t_trans, hyper_period, flow1.period)
 
+    l2_tables = routing.generate_l2_lookup_tables(base_flows)
+    xml_output = gcl_gen.generate_xml_configuration(l2_tables, gcl_config, hyper_period)
+
     # Calculate expected latency based on ILP mathematical model
     path = routes[flow1.flow_id]
     first_edge = (path[0], path[1])
@@ -145,7 +148,9 @@ def calculate_ilp_schedule(f1_payload):
         "guard_band": guard_band,
         "gcl_config": gcl_config,
         "hyper_period": hyper_period,
-        "routes": routes
+        "routes": routes,
+        "l2_tables": l2_tables,
+        "xml_output": xml_output
     }
 
 @st.cache_data(show_spinner=False)
@@ -615,96 +620,121 @@ def draw_latency_chart(payloads, p7_latencies, p0_latencies, expected_latency):
 
 # Sequential Demo Execution Block
 if st.session_state.is_running and st.session_state.demo_phase == 0:
-    # Phase 0 -> 1: Discovery
-    st.session_state.demo_phase = 1
-    update_phase_tracker_ui()
-    current_logs = "[System] Initializing Presentation Engine...\n"
-    log_placeholder.markdown(write_terminal_log(current_logs), unsafe_allow_html=True)
-    status_text.info("Phase 1: Discovering Network Topology and Flows...")
-    time.sleep(1.0)
-    current_logs += f"[Discovery] Scanning zonal architecture... Found 8 nodes, 7 links.\n"
-    current_logs += f"[CUC] Identified Flow 1: Mission-Critical (Prio 7), Payload: {critical_payload_size} Bytes.\n"
-    current_logs += f"[CUC] Identified Flow 2: Best-Effort Interference (Prio 0), Max Payload: {interference_max_payload} Bytes.\n"
-    log_placeholder.markdown(write_terminal_log(current_logs), unsafe_allow_html=True)
-    topo_placeholder.plotly_chart(create_network_topology(), use_container_width=True, key="phase1_topo")
-    time.sleep(1.0)
-
-    # Phase 1 -> 2: Optimization (ILP Deep-Dive)
-    st.session_state.demo_phase = 2
-    update_phase_tracker_ui()
-    status_text.warning("Phase 2: Solving TAS Schedules via Integer Linear Programming...")
-
-    current_logs += "[PuLP] Formulating ILP Constraints...\n"
-    log_placeholder.markdown(write_terminal_log(current_logs), unsafe_allow_html=True)
-
-    # Trigger actual backend calculation
-    ilp_results = calculate_ilp_schedule(critical_payload_size)
-    st.session_state.backend_results = ilp_results
-
-    guard_band_val = ilp_results['guard_band']
-    expected_latency = ilp_results['expected_latency']
-
-    def get_math_overlay(c1="🔴", c2="🔴", c3="🔴"):
-        return f"""
-        <div class="metric-card" style="border-left: 5px solid #faca2b;">
-            <h4 style="color:#faca2b;">Mathematical Solver (PuLP ILP) Transparency</h4>
-            <p>Enforcing IEEE 802.1Qbv Constraints:</p>
-            <ul style="list-style-type: none; padding-left: 0; font-family: monospace;">
-                <li>{c1} <strong>Flow Isolation Checked:</strong> Switch egress buffer conflict resolved.</li>
-                <li style="margin-top: 10px;">{c2} <strong>Guard Band Calculated:</strong> {guard_band_val:.2f} µs gap secured based on 100Mbps MTU limit.</li>
-                <li style="margin-top: 10px;">{c3} <strong>End-to-End Boundary:</strong> Target path latency locked to {expected_latency:.2f} µs.</li>
-            </ul>
-        </div>
-        """
-
-    with chart_placeholder.container():
-        math_overlay = st.empty()
-        math_overlay.markdown(get_math_overlay("🔴", "🔴", "🔴"), unsafe_allow_html=True)
+    try:
+        # Phase 0 -> 1: Discovery
+        st.session_state.demo_phase = 1
+        update_phase_tracker_ui()
+        current_logs = "[System] Initializing Presentation Engine...\n"
+        log_placeholder.markdown(write_terminal_log(current_logs), unsafe_allow_html=True)
+        status_text.info("Phase 1: Discovering Network Topology and Flows...")
+        time.sleep(1.0)
+        current_logs += f"[Discovery] Scanning zonal architecture... Found 8 nodes, 7 links.\n"
+        current_logs += f"[CUC] Identified Flow 1: Mission-Critical (Prio 7), Payload: {critical_payload_size} Bytes.\n"
+        current_logs += f"[CUC] Identified Flow 2: Best-Effort Interference (Prio 0), Max Payload: {interference_max_payload} Bytes.\n"
+        log_placeholder.markdown(write_terminal_log(current_logs), unsafe_allow_html=True)
+        topo_placeholder.plotly_chart(create_network_topology(), use_container_width=True, key="phase1_topo")
         time.sleep(1.0)
 
-        current_logs += "[PuLP] Validating Buffer Collisions... Done.\n"
+        # Phase 1 -> 2: Optimization (ILP Deep-Dive)
+        st.session_state.demo_phase = 2
+        update_phase_tracker_ui()
+        status_text.warning("Phase 2: Solving TAS Schedules via Integer Linear Programming...")
+
+        current_logs += "[PuLP] Formulating ILP Constraints...\n"
         log_placeholder.markdown(write_terminal_log(current_logs), unsafe_allow_html=True)
-        math_overlay.markdown(get_math_overlay("🟢", "🔴", "🔴"), unsafe_allow_html=True)
+
+        # Trigger actual backend calculation
+        ilp_results = calculate_ilp_schedule(critical_payload_size)
+        st.session_state.backend_results = ilp_results
+
+        guard_band_val = ilp_results['guard_band']
+        expected_latency = ilp_results['expected_latency']
+
+        def get_math_overlay(c1="🔴", c2="🔴", c3="🔴"):
+            return f"""
+            <div class="metric-card" style="border-left: 5px solid #faca2b;">
+                <h4 style="color:#faca2b;">Mathematical Solver (PuLP ILP) Transparency</h4>
+                <p>Enforcing IEEE 802.1Qbv Constraints:</p>
+                <ul style="list-style-type: none; padding-left: 0; font-family: monospace;">
+                    <li>{c1} <strong>Flow Isolation Checked:</strong> Switch egress buffer conflict resolved.</li>
+                    <li style="margin-top: 10px;">{c2} <strong>Guard Band Calculated:</strong> {guard_band_val:.2f} µs gap secured based on 100Mbps MTU limit.</li>
+                    <li style="margin-top: 10px;">{c3} <strong>End-to-End Boundary:</strong> Target path latency locked to {expected_latency:.2f} µs.</li>
+                </ul>
+            </div>
+            """
+
+        with chart_placeholder.container():
+            math_overlay = st.empty()
+            math_overlay.markdown(get_math_overlay("🔴", "🔴", "🔴"), unsafe_allow_html=True)
+            time.sleep(1.0)
+
+            current_logs += "[PuLP] Validating Buffer Collisions... Done.\n"
+            log_placeholder.markdown(write_terminal_log(current_logs), unsafe_allow_html=True)
+            math_overlay.markdown(get_math_overlay("🟢", "🔴", "🔴"), unsafe_allow_html=True)
+            time.sleep(1.0)
+
+            current_logs += f"[PuLP] Calculating required Guard Band... Solved: {guard_band_val:.2f} µs.\n"
+            log_placeholder.markdown(write_terminal_log(current_logs), unsafe_allow_html=True)
+            math_overlay.markdown(get_math_overlay("🟢", "🟢", "🔴"), unsafe_allow_html=True)
+            time.sleep(1.0)
+
+            current_logs += f"[PuLP] Bounding end-to-end path delay... Solved: {expected_latency:.2f} µs.\n"
+            log_placeholder.markdown(write_terminal_log(current_logs), unsafe_allow_html=True)
+            math_overlay.markdown(get_math_overlay("🟢", "🟢", "🟢"), unsafe_allow_html=True)
+            time.sleep(1.5)
+            math_overlay.empty()
+
+        # Phase 2 -> 3: Configuration
+        st.session_state.demo_phase = 3
+        update_phase_tracker_ui()
+        status_text.success("Phase 3: Deploying GCL to Network Switches...")
+        current_logs += "[CNC] Compiling YANG-style XML Configurations...\n"
+        log_placeholder.markdown(write_terminal_log(current_logs), unsafe_allow_html=True)
         time.sleep(1.0)
-
-        current_logs += f"[PuLP] Calculating required Guard Band... Solved: {guard_band_val:.2f} µs.\n"
+        gantt_placeholder.plotly_chart(draw_gantt_chart(), use_container_width=True, key="phase3_gantt")
+        queue_buffer_placeholder.markdown(draw_queue_buffers(q0_fill=0, q7_fill=0, gate0_open=True, gate7_open=False), unsafe_allow_html=True)
+        current_logs += "[CNC] Deployed Gate Control Lists successfully to SW1, SW2, SW3, SW4.\n"
         log_placeholder.markdown(write_terminal_log(current_logs), unsafe_allow_html=True)
-        math_overlay.markdown(get_math_overlay("🟢", "🟢", "🔴"), unsafe_allow_html=True)
-        time.sleep(1.0)
+        time.sleep(2.0)
 
-        current_logs += f"[PuLP] Bounding end-to-end path delay... Solved: {expected_latency:.2f} µs.\n"
-        log_placeholder.markdown(write_terminal_log(current_logs), unsafe_allow_html=True)
-        math_overlay.markdown(get_math_overlay("🟢", "🟢", "🟢"), unsafe_allow_html=True)
-        time.sleep(1.5)
-        math_overlay.empty()
+        # Pre-flight Phase 4 transition
+        st.session_state.demo_phase = 4
+        st.session_state.is_running = False
+        st.session_state.final_logs = current_logs
+        st.rerun()
 
-    # Phase 2 -> 3: Configuration
-    st.session_state.demo_phase = 3
-    update_phase_tracker_ui()
-    status_text.success("Phase 3: Deploying GCL to Network Switches...")
-    current_logs += "[CNC] Compiling YANG-style XML Configurations...\n"
-    log_placeholder.markdown(write_terminal_log(current_logs), unsafe_allow_html=True)
-    time.sleep(1.0)
-    gantt_placeholder.plotly_chart(draw_gantt_chart(), use_container_width=True, key="phase3_gantt")
-    queue_buffer_placeholder.markdown(draw_queue_buffers(q0_fill=0, q7_fill=0, gate0_open=True, gate7_open=False), unsafe_allow_html=True)
-    current_logs += "[CNC] Deployed Gate Control Lists successfully to SW1, SW2, SW3, SW4.\n"
-    log_placeholder.markdown(write_terminal_log(current_logs), unsafe_allow_html=True)
-    time.sleep(2.0)
+    except Exception as e:
+        st.error(f"**Backend Crash**: An unexpected error occurred during execution: {e}")
+        st.session_state.is_running = False
 
-    # Phase 3 -> 4: Live Stress Test (Advanced Validation)
-    st.session_state.demo_phase = 4
+# Persistent Phase 4 execution block (Detached from is_running loop)
+if st.session_state.demo_phase == 4 and not st.session_state.is_running:
     update_phase_tracker_ui()
     status_text.error("Phase 4: Advanced Validation Scenarios. Isolate Performance & Security metrics.")
+    log_placeholder.markdown(write_terminal_log(st.session_state.final_logs), unsafe_allow_html=True)
 
-    expected_latency = st.session_state.backend_results['expected_latency']
-    gcl_config = st.session_state.backend_results['gcl_config']
-    hyper_period = st.session_state.backend_results['hyper_period']
+    # Restore persistent UI elements from previous phases
+    topo_placeholder.plotly_chart(create_network_topology(), use_container_width=True, key="p4_topo")
+
+    expected_latency = st.session_state.backend_results.get('expected_latency', 0.0)
+    gcl_config = st.session_state.backend_results.get('gcl_config', {})
+    hyper_period = st.session_state.backend_results.get('hyper_period', 50000.0)
     ilp_results = st.session_state.backend_results
 
-    current_logs += "[SimPy] Initializing Advanced Validation Scenarios...\n"
-    log_placeholder.markdown(write_terminal_log(current_logs), unsafe_allow_html=True)
-
     with chart_placeholder.container():
+        # Live XML Expander
+        with st.expander("🔬 View Live Switch Configuration (L2 & GCL XML)"):
+            if 'xml_deployed' not in st.session_state:
+                with st.spinner("Deploying XML to SW1, SW2, SW3, SW4 via TCP/IP..."):
+                    time.sleep(1.5)
+                st.session_state.xml_deployed = True
+
+            st.success("Configuration deployed successfully.")
+            st.markdown("#### Layer 2 MAC Forwarding Routes (Generated by Dijkstra)")
+            st.json(ilp_results.get("l2_tables", {}))
+            st.markdown("#### Gate Control List (YANG-style XML Generated by PuLP)")
+            st.code(ilp_results.get("xml_output", ""), language="xml")
+
         st.markdown("### Interactive Validation Scenarios")
         tab1, tab2 = st.tabs(["📊 Scenario A: Performance (IEEE 802.1Qbv)", "🛡️ Scenario B: Security (Cyber Attack)"])
 
@@ -712,7 +742,6 @@ if st.session_state.is_running and st.session_state.demo_phase == 0:
             st.markdown("Test the deterministic guarantees of the Time-Aware Shaper (TAS) against unshaped Strict Priority routing.")
             tas_enabled = st.toggle("Enable IEEE 802.1Qbv TAS", value=True, help="Toggle to compare shaped traffic vs. unshaped traffic.")
 
-            # Re-draw gantt dynamically based on toggle state
             with gantt_placeholder.container():
                 st.plotly_chart(draw_gantt_chart(ilp_results=ilp_results, tas_enabled=tas_enabled), use_container_width=True, key=f"tab1_gantt_{tas_enabled}")
 
@@ -729,7 +758,6 @@ if st.session_state.is_running and st.session_state.demo_phase == 0:
 
             st.plotly_chart(draw_latency_chart(payloads, p7_lats, p0_lats, expected_latency), use_container_width=True, key=f"tab1_latency_{tas_enabled}")
 
-            # Keep backend results populated for Phase 5 continuity
             st.session_state.backend_results['payloads'] = payloads
             st.session_state.backend_results['p7_latencies'] = p7_lats
             st.session_state.backend_results['p0_latencies'] = p0_lats
@@ -749,11 +777,9 @@ if st.session_state.is_running and st.session_state.demo_phase == 0:
                 col_sec1.markdown(f"<div class='metric-card' style='border: 1px solid #ff4b4b;'><strong>Security Analytics</strong><br><span style='font-size:24px; color:#ff4b4b;'>{dropped:,}</span><br><small>Spoofed Packets Dropped</small></div>", unsafe_allow_html=True)
                 col_sec2.markdown(f"<div class='metric-card glow-text'><strong>Flow 1 (Prio 7) Integrity</strong><br><span style='font-size:24px; color:#4ade80;'>100% Maintained</span><br><small>0.00 µs Delay Induced</small></div>", unsafe_allow_html=True)
 
-                # Keep original expected latency for chart
                 st.plotly_chart(draw_latency_chart(payloads, p7_lats, p0_lats, expected_latency), use_container_width=True, key="tab2_latency_attack")
             else:
                 st.info("System Secure. Awaiting Trigger.")
-                # We need payloads to be defined here if we haven't clicked the button, let's grab from Tab 1 results.
                 payloads = st.session_state.backend_results.get('payloads', [1000])
                 p7_lats = st.session_state.backend_results.get('p7_latencies', [0.0])
                 p0_lats = st.session_state.backend_results.get('p0_latencies', [0.0])
@@ -763,20 +789,20 @@ if st.session_state.is_running and st.session_state.demo_phase == 0:
     col_end1, col_end2 = st.columns(2)
     with col_end1:
         if st.button("⏹️ Complete Demo"):
-            current_logs += "[Verification] Live Stress-Test complete. Determinism mathematically and empirically validated.\n"
-            log_placeholder.markdown(write_terminal_log(current_logs), unsafe_allow_html=True)
+            logs = st.session_state.final_logs + "\n[Verification] Live Stress-Test complete. Determinism mathematically and empirically validated.\n"
+            log_placeholder.markdown(write_terminal_log(logs), unsafe_allow_html=True)
             status_text.success("Presentation Complete! The SD-TSN perfectly maintained critical operations despite massive interference and security threats.")
-            st.session_state.final_logs = current_logs
-            st.session_state.is_running = False
+            # Move to phase 6 (done) or just rely on state
+            st.session_state.demo_phase = 6
             st.rerun()
     with col_end2:
         if st.session_state.slow_mo:
             if st.button("⏭️ Proceed to Phase 5: Microsecond Slow-Mo"):
-                current_logs += "[Slow-Mo] Transitioning to Microsecond Slow-Motion view...\n"
-                log_placeholder.markdown(write_terminal_log(current_logs), unsafe_allow_html=True)
+                logs = st.session_state.final_logs + "\n[Slow-Mo] Transitioning to Microsecond Slow-Motion view...\n"
+                log_placeholder.markdown(write_terminal_log(logs), unsafe_allow_html=True)
                 st.session_state.demo_phase = 5
-                st.session_state.final_logs = current_logs
                 st.rerun()
+
 
 # --- Phase 5: Microsecond Slow-Motion ---
 if st.session_state.demo_phase == 5:
