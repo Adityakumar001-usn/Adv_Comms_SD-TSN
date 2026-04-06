@@ -20,12 +20,12 @@ Modern automotive architectures require a mix of best-effort background traffic 
 
 ---
 
-## Core Simulation Architecture (Phase 1)
+## Core Simulation Architecture
 
-The backend engine validates the determinism of the network using four key components:
+The backend engine validates the determinism of the network using four key components, all of which are thoroughly commented in the source code to explain the underlying math and simulation logic:
 
 ### 1. Data Models & Topology (`models.py`, `cuc.py`)
-*   **Topology:** A directional graph representing a zonal automotive architecture featuring Endpoints (E1, E2, E3), Switches (SW1, SW2, SW3, SW4), and a Gateway (GW). All physical links operate at 100 Mbps.
+*   **Topology:** A directional NetworkX graph representing a zonal automotive architecture featuring Endpoints (E1, E2, E3), Switches (SW1, SW2, SW3, SW4), and a Gateway (GW). All physical links operate at 100 Mbps.
 *   **Flow Configuration (CUC):** A mock Centralized User Configuration module generates two core test flows:
     *   **Flow 1 (Time-Sensitive):** E1 -> SW1 -> SW3 -> GW -> E3. Priority 7, 50ms period, 1024 Byte payload, strict 500µs max latency constraint.
     *   **Flow 2 (Interference):** E2 -> SW2 -> SW4 -> GW -> E3. Priority 0, 10ms period, variable payload (3,200 Bytes up to 102,400 Bytes).
@@ -40,13 +40,13 @@ The backend engine validates the determinism of the network using four key compo
 
 ### 3. Gate Control List (GCL) Generation (`gcl.py`)
 *   Calculates the network-wide hyper-period (50,000 µs based on the LCM of the flows).
-*   Generates exact open/close timings for Priority 7 and Priority 0 queues across all switches.
+*   Generates exact open/close timings for Priority 7 and Priority 0 queues across all switches to physically enforce the ILP constraints.
 *   Outputs the finalized switch schedules to a structured XML (`network_config.xml`) mimicking a YANG model.
 
 ### 4. SimPy Discrete-Event Simulation (`simulator.py`, `run_simulation.py`)
-*   A custom SimPy simulation modeling the physical 100 Mbps links, switch forwarding delays, and strict Priority queuing (enforcing the calculated GCL timings).
-*   Runs automated test suites featuring 100 consecutive transmissions of Flow 1 against escalating Flow 2 payloads.
-*   **Validation:** The simulation proves the architecture's determinism. Flow 1 maintains a strict, unwavering latency of **exactly 345.84 µs** (0.00 µs jitter) regardless of whether Flow 2 transmits 3.2KB or 102.4KB of interference. Outputs results to `simulation_report.json`.
+*   A custom SimPy "Physics Engine" modeling the physical 100 Mbps links, switch forwarding delays, and strict Priority queuing (enforcing the calculated GCL timings).
+*   Runs automated test suites featuring consecutive transmissions of Flow 1 against escalating Flow 2 payloads.
+*   **Validation:** The simulation proves the architecture's determinism. Flow 1 maintains a strict, unwavering latency (0.00 µs jitter) regardless of whether Flow 2 transmits 3.2KB or 102.4KB of interference. Outputs results to `simulation_report.json`.
 
 ---
 
@@ -59,18 +59,20 @@ Running the core simulation generates two primary artifacts automatically saved 
 
 ---
 
-## Interactive Guided Presentation Dashboard (Phase 2 & 3)
+## Interactive Digital Twin Dashboard (`app.py`)
 
-A professional, interactive dashboard built with Streamlit (`app.py`) serves as the primary presentation layer for audiences. It transforms the raw backend data into a highly visual, phase-based engineering presentation, completely driven by live backend computations.
+A professional, interactive dashboard built with Streamlit serves as the primary presentation layer. It transforms the raw backend data into a highly visual, phase-based engineering "Digital Twin" presentation, fully driven by live backend computations.
 
-### Dashboard Features (`app.py`)
+### Dashboard Features
 
 *   **Sequential Live Demo Logic:** A "▶️ Start Live Demo" button triggers a fully animated state machine that guides the audience through the critical engineering phases:
-    1.  **🟢 Discovery:** Dynamically mapping the topology and flows.
-    2.  **🟡 Optimization (ILP):** Mathematically solving the Time-Aware Shaper (TAS) scheduling constraints. Features a dynamic **"X-Ray" Transparency Checklist** that proves Flow Isolation, Guard Band, and Boundary constraints as they are solved by PuLP.
-    3.  **🟠 Configuration:** Compiling the YANG-style XML and deploying the Gate Control Lists to the switches. Features a live Gantt Chart and visual HTML/CSS **Live Queue Buffer Progress Bars**.
-    4.  **🔴 Live Stress-Test:** Actively calls the SimPy discrete-event engine (`simulator.py`) to loop through escalating background interference loads, plotting the exact calculated latencies point-by-point on a dual-axis Plotly graph.
-    5.  **🟣 Microsecond Slow-Motion:** A deep-dive interactive mode allowing users to step forward (+10 µs increments) through a single network cycle. Watch physical MTU fragmentation cause Priority 0 queues to back up against the Guard Band, while the Priority 7 payload sails through with exactly 0.00 µs jitter.
+    1.  **🟢 Digital Twin Construction (Layer 1 & 2):** Dynamically animates the topology instantiation, physical link connections, and hop-by-hop L2 routing paths.
+    2.  **🟡 Optimization (Layer 3 ILP):** Mathematically solves the Time-Aware Shaper (TAS) scheduling constraints. Features a dynamic **"X-Ray" Transparency Checklist** that proves Flow Isolation, Guard Band, and Boundary constraints as they are solved by PuLP.
+    3.  **🟠 Configuration & SimPy Init:** Compiles the YANG-style XML, deploys the Gate Control Lists to the switches, and initializes the discrete-event clock.
+    4.  **🔴 Interactive Validation Scenarios:** Provides tabbed views for advanced testing:
+        *   **Scenario A (A/B Testing):** Compare strict priority (TAS disabled) against shaped traffic (TAS enabled) and watch the dynamic queue progress bars fill as the SimPy clock ticks.
+        *   **Scenario B (Security Attack):** Simulate a rogue node injecting spoofed Priority 7 packets, demonstrating the CNC's ability to isolate unauthorized ingress and drop packets.
+    5.  **🟣 Microsecond Slow-Motion:** A deep-dive interactive mode allowing users to step forward (+10 µs increments) through a single network cycle. Watch physical MTU fragmentation cause Priority 0 queues to back up against the Guard Band, while the Priority 7 payload sails through.
 
 ### Dynamic Backend Integration & Controls
 
