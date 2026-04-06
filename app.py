@@ -256,7 +256,7 @@ def draw_empty_chart(title, x_title, y_title):
     fig.add_trace(go.Scatter(x=[0, 1], y=[0, 1], mode='lines', line=dict(color='rgba(0,0,0,0)'), hoverinfo='none'))
     return fig
 
-def create_network_topology(attack_active=False):
+def create_network_topology(attack_active=False, stage="full", flow1_hops=None, flow2_hops=None):
     # Constructing a simple representation of our Zonal Architecture
     # E1 -> SW1 -> SW3 -> GW -> E3
     # E2 -> SW2 -> SW4 -> GW -> E3
@@ -295,18 +295,20 @@ def create_network_topology(attack_active=False):
         edge_x.extend([x0, x1, None])
         edge_y.extend([y0, y1, None])
 
-    # Base edges (gray)
-    edge_trace = go.Scatter(
-        x=edge_x, y=edge_y,
-        line=dict(width=2, color='#888'),
-        hoverinfo='none',
-        mode='lines',
-        name='Network Links'
-    )
+    traces = []
 
-    traces = [edge_trace]
+    if stage in ["links", "flow1_routing", "flow2_routing", "full"]:
+        # Base edges (gray)
+        edge_trace = go.Scatter(
+            x=edge_x, y=edge_y,
+            line=dict(width=2, color='#888'),
+            hoverinfo='none',
+            mode='lines',
+            name='Network Links'
+        )
+        traces.append(edge_trace)
 
-    if attack_active:
+    if attack_active and stage == "full":
         att_x = [pos['MockAttacker'][0], pos['SW1'][0], None]
         att_y = [pos['MockAttacker'][1], pos['SW1'][1], None]
         att_trace = go.Scatter(
@@ -319,38 +321,46 @@ def create_network_topology(attack_active=False):
         traces.append(att_trace)
 
     # Flow 1 edges (Glowing Red)
-    f1_x = []
-    f1_y = []
-    for edge in flow1_edges:
-        x0, y0 = pos[edge[0]]
-        x1, y1 = pos[edge[1]]
-        f1_x.extend([x0, x1, None])
-        f1_y.extend([y0, y1, None])
+    if stage in ["flow1_routing", "flow2_routing", "full"]:
+        f1_x = []
+        f1_y = []
+        edges_to_draw = flow1_edges if flow1_hops is None else flow1_edges[:flow1_hops]
+        for edge in edges_to_draw:
+            x0, y0 = pos[edge[0]]
+            x1, y1 = pos[edge[1]]
+            f1_x.extend([x0, x1, None])
+            f1_y.extend([y0, y1, None])
 
-    f1_trace = go.Scatter(
-        x=f1_x, y=f1_y,
-        line=dict(width=6, color='#ff4b4b'), # Streamlit red
-        hoverinfo='none',
-        mode='lines',
-        name='Flow 1: Mission-Critical Route'
-    )
+        if f1_x:
+            f1_trace = go.Scatter(
+                x=f1_x, y=f1_y,
+                line=dict(width=6, color='#ff4b4b'), # Streamlit red
+                hoverinfo='none',
+                mode='lines',
+                name='Flow 1: Mission-Critical Route'
+            )
+            traces.append(f1_trace)
 
     # Flow 2 edges (Dashed Amber)
-    f2_x = []
-    f2_y = []
-    for edge in flow2_edges:
-        x0, y0 = pos[edge[0]]
-        x1, y1 = pos[edge[1]]
-        f2_x.extend([x0, x1, None])
-        f2_y.extend([y0, y1, None])
+    if stage in ["flow2_routing", "full"]:
+        f2_x = []
+        f2_y = []
+        edges_to_draw = flow2_edges if flow2_hops is None else flow2_edges[:flow2_hops]
+        for edge in edges_to_draw:
+            x0, y0 = pos[edge[0]]
+            x1, y1 = pos[edge[1]]
+            f2_x.extend([x0, x1, None])
+            f2_y.extend([y0, y1, None])
 
-    f2_trace = go.Scatter(
-        x=f2_x, y=f2_y,
-        line=dict(width=4, color='#faca2b', dash='dash'), # Amber
-        hoverinfo='none',
-        mode='lines',
-        name='Flow 2: Background Interference Route'
-    )
+        if f2_x:
+            f2_trace = go.Scatter(
+                x=f2_x, y=f2_y,
+                line=dict(width=4, color='#faca2b', dash='dash'), # Amber
+                hoverinfo='none',
+                mode='lines',
+                name='Flow 2: Background Interference Route'
+            )
+            traces.append(f2_trace)
 
     node_x = []
     node_y = []
@@ -386,7 +396,7 @@ def create_network_topology(attack_active=False):
         name='Network Controllers / Nodes'
     )
 
-    traces.extend([f2_trace, f1_trace, node_trace])
+    traces.append(node_trace)
 
     fig = go.Figure(data=traces,
              layout=go.Layout(
@@ -621,26 +631,44 @@ def draw_latency_chart(payloads, p7_latencies, p0_latencies, expected_latency):
 # Sequential Demo Execution Block
 if st.session_state.is_running and st.session_state.demo_phase == 0:
     try:
-        # Phase 0 -> 1: Discovery
+        # Phase 0 -> 1: Discovery / Digital Twin Layer 1 & 2
         st.session_state.demo_phase = 1
         update_phase_tracker_ui()
         current_logs = "[System] Initializing Presentation Engine...\n"
+        current_logs += "[Digital Twin] Layer 1: Instantiating Physical Nodes...\n"
         log_placeholder.markdown(write_terminal_log(current_logs), unsafe_allow_html=True)
-        status_text.info("Phase 1: Discovering Network Topology and Flows...")
+        status_text.info("Phase 1: Building Digital Twin - Physical Layer & Links")
+
+        # Nodes
+        topo_placeholder.plotly_chart(create_network_topology(stage="nodes"), use_container_width=True, key="p1_nodes")
         time.sleep(1.0)
-        current_logs += f"[Discovery] Scanning zonal architecture... Found 8 nodes, 7 links.\n"
-        current_logs += f"[CUC] Identified Flow 1: Mission-Critical (Prio 7), Payload: {critical_payload_size} Bytes.\n"
-        current_logs += f"[CUC] Identified Flow 2: Best-Effort Interference (Prio 0), Max Payload: {interference_max_payload} Bytes.\n"
+
+        # Links
+        current_logs += "[Digital Twin] Layer 1: Establishing 100Mbps Ethernet Links...\n"
         log_placeholder.markdown(write_terminal_log(current_logs), unsafe_allow_html=True)
-        topo_placeholder.plotly_chart(create_network_topology(), use_container_width=True, key="phase1_topo")
+        topo_placeholder.plotly_chart(create_network_topology(stage="links"), use_container_width=True, key="p1_links")
         time.sleep(1.0)
+
+        # Routing Flow 1
+        current_logs += f"[CUC] Provisioning Flow 1: Mission-Critical (Prio 7), Payload: {critical_payload_size} Bytes.\n"
+        log_placeholder.markdown(write_terminal_log(current_logs), unsafe_allow_html=True)
+        for hops in range(1, 5): # 4 edges
+            topo_placeholder.plotly_chart(create_network_topology(stage="flow1_routing", flow1_hops=hops), use_container_width=True, key=f"p1_f1_{hops}")
+            time.sleep(0.5)
+
+        # Routing Flow 2
+        current_logs += f"[CUC] Provisioning Flow 2: Best-Effort Interference (Prio 0), Max Payload: {interference_max_payload} Bytes.\n"
+        log_placeholder.markdown(write_terminal_log(current_logs), unsafe_allow_html=True)
+        for hops in range(1, 5): # 4 edges
+            topo_placeholder.plotly_chart(create_network_topology(stage="flow2_routing", flow1_hops=4, flow2_hops=hops), use_container_width=True, key=f"p1_f2_{hops}")
+            time.sleep(0.5)
 
         # Phase 1 -> 2: Optimization (ILP Deep-Dive)
         st.session_state.demo_phase = 2
         update_phase_tracker_ui()
-        status_text.warning("Phase 2: Solving TAS Schedules via Integer Linear Programming...")
+        status_text.warning("Phase 2: Mathematical Solver (Layer 3) - Validating Constraints")
 
-        current_logs += "[PuLP] Formulating ILP Constraints...\n"
+        current_logs += "[PuLP] Activating ILP Mathematical Solver...\n"
         log_placeholder.markdown(write_terminal_log(current_logs), unsafe_allow_html=True)
 
         # Trigger actual backend calculation
@@ -650,50 +678,44 @@ if st.session_state.is_running and st.session_state.demo_phase == 0:
         guard_band_val = ilp_results['guard_band']
         expected_latency = ilp_results['expected_latency']
 
-        def get_math_overlay(c1="🔴", c2="🔴", c3="🔴"):
-            return f"""
-            <div class="metric-card" style="border-left: 5px solid #faca2b;">
-                <h4 style="color:#faca2b;">Mathematical Solver (PuLP ILP) Transparency</h4>
-                <p>Enforcing IEEE 802.1Qbv Constraints:</p>
-                <ul style="list-style-type: none; padding-left: 0; font-family: monospace;">
-                    <li>{c1} <strong>Flow Isolation Checked:</strong> Switch egress buffer conflict resolved.</li>
-                    <li style="margin-top: 10px;">{c2} <strong>Guard Band Calculated:</strong> {guard_band_val:.2f} µs gap secured based on 100Mbps MTU limit.</li>
-                    <li style="margin-top: 10px;">{c3} <strong>End-to-End Boundary:</strong> Target path latency locked to {expected_latency:.2f} µs.</li>
-                </ul>
-            </div>
-            """
-
         with chart_placeholder.container():
-            math_overlay = st.empty()
-            math_overlay.markdown(get_math_overlay("🔴", "🔴", "🔴"), unsafe_allow_html=True)
-            time.sleep(1.0)
+            with st.status("🧠 PuLP ILP Mathematical Constraint Checklist", expanded=True) as status:
+                st.write("Checking Egress Port Buffer Constraints...")
+                time.sleep(1.0)
+                current_logs += "[PuLP] Flow Isolation Checked: Switch egress buffer conflict resolved.\n"
+                log_placeholder.markdown(write_terminal_log(current_logs), unsafe_allow_html=True)
+                st.write("✔️ Buffer Collisions Prevented")
 
-            current_logs += "[PuLP] Validating Buffer Collisions... Done.\n"
-            log_placeholder.markdown(write_terminal_log(current_logs), unsafe_allow_html=True)
-            math_overlay.markdown(get_math_overlay("🟢", "🔴", "🔴"), unsafe_allow_html=True)
-            time.sleep(1.0)
+                time.sleep(1.0)
+                st.write("Calculating 100Mbps MTU Guard Band...")
+                current_logs += f"[PuLP] Calculating required Guard Band... Solved: {guard_band_val:.2f} µs.\n"
+                log_placeholder.markdown(write_terminal_log(current_logs), unsafe_allow_html=True)
+                st.write(f"✔️ Guard Band Size: {guard_band_val:.2f} µs")
 
-            current_logs += f"[PuLP] Calculating required Guard Band... Solved: {guard_band_val:.2f} µs.\n"
-            log_placeholder.markdown(write_terminal_log(current_logs), unsafe_allow_html=True)
-            math_overlay.markdown(get_math_overlay("🟢", "🟢", "🔴"), unsafe_allow_html=True)
-            time.sleep(1.0)
+                time.sleep(1.0)
+                st.write("Locking End-to-End Latency Target...")
+                current_logs += f"[PuLP] Bounding end-to-end path delay... Solved: {expected_latency:.2f} µs.\n"
+                log_placeholder.markdown(write_terminal_log(current_logs), unsafe_allow_html=True)
+                st.write(f"✔️ Guaranteed Target Latency: {expected_latency:.2f} µs")
 
-            current_logs += f"[PuLP] Bounding end-to-end path delay... Solved: {expected_latency:.2f} µs.\n"
-            log_placeholder.markdown(write_terminal_log(current_logs), unsafe_allow_html=True)
-            math_overlay.markdown(get_math_overlay("🟢", "🟢", "🟢"), unsafe_allow_html=True)
-            time.sleep(1.5)
-            math_overlay.empty()
+                time.sleep(1.5)
+                status.update(label="✔️ ILP Constraints Verified & Solved", state="complete", expanded=False)
 
         # Phase 2 -> 3: Configuration
         st.session_state.demo_phase = 3
         update_phase_tracker_ui()
-        status_text.success("Phase 3: Deploying GCL to Network Switches...")
+        status_text.success("Phase 3: Deploying GCL and Initializing SimPy Engine...")
         current_logs += "[CNC] Compiling YANG-style XML Configurations...\n"
         log_placeholder.markdown(write_terminal_log(current_logs), unsafe_allow_html=True)
         time.sleep(1.0)
+
+        current_logs += "[SimPy] Initializing Discrete-Event Physics Engine...\n"
+        log_placeholder.markdown(write_terminal_log(current_logs), unsafe_allow_html=True)
         gantt_placeholder.plotly_chart(draw_gantt_chart(), use_container_width=True, key="phase3_gantt")
         queue_buffer_placeholder.markdown(draw_queue_buffers(q0_fill=0, q7_fill=0, gate0_open=True, gate7_open=False), unsafe_allow_html=True)
+
         current_logs += "[CNC] Deployed Gate Control Lists successfully to SW1, SW2, SW3, SW4.\n"
+        current_logs += "[SimPy] Clock Initialized at 0.00 µs.\n"
         log_placeholder.markdown(write_terminal_log(current_logs), unsafe_allow_html=True)
         time.sleep(2.0)
 
@@ -722,8 +744,8 @@ if st.session_state.demo_phase == 4 and not st.session_state.is_running:
     ilp_results = st.session_state.backend_results
 
     with chart_placeholder.container():
-        # Live XML Expander
-        with st.expander("🔬 View Live Switch Configuration (L2 & GCL XML)"):
+        # Live XML Expander (moved up)
+        with st.expander("🔬 View Live Switch Configuration (L2 & GCL XML)", expanded=False):
             if 'xml_deployed' not in st.session_state:
                 with st.spinner("Deploying XML to SW1, SW2, SW3, SW4 via TCP/IP..."):
                     time.sleep(1.5)
@@ -745,7 +767,19 @@ if st.session_state.demo_phase == 4 and not st.session_state.is_running:
             with gantt_placeholder.container():
                 st.plotly_chart(draw_gantt_chart(ilp_results=ilp_results, tas_enabled=tas_enabled), use_container_width=True, key=f"tab1_gantt_{tas_enabled}")
 
+            # Metric for SimPy Clock
+            st.markdown("### ⏱️ SimPy Discrete-Event Clock")
+            simpy_clock = st.empty()
+
+            # Animate the queues filling up proportionally to the payloads being tested
             payloads, p7_lats, p0_lats, _ = run_cached_sim_iterations(critical_payload_size, interference_max_payload, gcl_config, hyper_period, tas_enabled=tas_enabled, attack_active=False)
+
+            for idx, p in enumerate(payloads):
+                sim_time_ms = (idx + 1) * 40  # Just a visual multiplier for the clock
+                simpy_clock.metric("Virtual Time Passed", f"{sim_time_ms} ms")
+                q0_percent = min(100, int((p / interference_max_payload) * 100))
+                queue_buffer_placeholder.markdown(draw_queue_buffers(q0_fill=q0_percent, q7_fill=0, gate0_open=True, gate7_open=False), unsafe_allow_html=True)
+                time.sleep(0.3)
 
             final_p7 = p7_lats[-1]
             jitter = final_p7 - expected_latency
@@ -771,7 +805,19 @@ if st.session_state.demo_phase == 4 and not st.session_state.is_running:
                 with topo_placeholder.container():
                     st.plotly_chart(create_network_topology(attack_active=True), use_container_width=True, key="tab2_topo_attack")
 
+                # Metric for SimPy Clock
+                st.markdown("### ⏱️ SimPy Discrete-Event Clock")
+                simpy_clock_attack = st.empty()
+
                 payloads, p7_lats, p0_lats, dropped = run_cached_sim_iterations(critical_payload_size, interference_max_payload, gcl_config, hyper_period, tas_enabled=True, attack_active=True)
+
+                for idx, p in enumerate(payloads):
+                    sim_time_ms = (idx + 1) * 40
+                    simpy_clock_attack.metric("Virtual Time Passed", f"{sim_time_ms} ms")
+                    q0_percent = min(100, int((p / interference_max_payload) * 100))
+                    # Show P7 queue slightly filling but dropping, maybe just flash red
+                    queue_buffer_placeholder.markdown(draw_queue_buffers(q0_fill=q0_percent, q7_fill=0, gate0_open=True, gate7_open=False), unsafe_allow_html=True)
+                    time.sleep(0.3)
 
                 col_sec1, col_sec2 = st.columns(2)
                 col_sec1.markdown(f"<div class='metric-card' style='border: 1px solid #ff4b4b;'><strong>Security Analytics</strong><br><span style='font-size:24px; color:#ff4b4b;'>{dropped:,}</span><br><small>Spoofed Packets Dropped</small></div>", unsafe_allow_html=True)

@@ -2231,3 +2231,123 @@ Traceback (most recent call last):
     sim = TSNSimulator(topo, routing, gcl_config, hyper_period, tas_enabled=tas_enabled, attack_active=attack_active)
           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 TypeError: TSNSimulator.__init__() got an unexpected keyword argument 'tas_enabled'
+2026-04-06 21:14:52.251 200 GET / (::1) 74.94ms
+2026-04-06 21:14:52.308 200 GET /static/media/SourceSansVF-Upright.ttf.BsWL4Kly.woff2 (::1) 19.28ms
+2026-04-06 21:14:52.447 200 GET /static/js/index.RuhrnD1v.js (::1) 155.50ms
+2026-04-06 21:14:52.454 200 GET /static/css/index.CwxM5zkf.css (::1) 4.38ms
+2026-04-06 21:14:52.956 200 GET /_stcore/health (::1) 18.14ms
+2026-04-06 21:14:52.968 200 GET /_stcore/host-config (::1) 11.27ms
+2026-04-06 21:14:53.038 101 GET /_stcore/stream (::1) 33.37ms
+2026-04-06 21:14:53.846 200 GET /static/js/index.XO1XYf_A.js (::1) 89.82ms
+2026-04-06 21:14:53.866 200 GET /static/js/index.bsVAaBS1.js (::1) 109.39ms
+2026-04-06 21:14:53.931 200 GET /static/js/index.BQCsuA0I.js (::1) 173.72ms
+2026-04-06 21:14:53.956 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+2026-04-06 21:14:53.992 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+2026-04-06 21:14:55.984 200 GET /static/media/MaterialSymbols-Rounded.BSbTZIlv.woff2 (::1) 1992.83ms
+2026-04-06 21:14:56.493 200 GET /static/js/index.CeipAcnQ.js (::1) 11.40ms
+2026-04-06 21:14:56.499 200 GET /static/js/WidgetLabel.CgwydhVR.js (::1) 4.36ms
+2026-04-06 21:14:56.501 200 GET /static/js/styled-components.CXqQ-NdV.js (::1) 5.38ms
+2026-04-06 21:14:56.501 200 GET /static/js/WidgetLabelHelpIcon.BKLcvqEy.js (::1) 5.79ms
+2026-04-06 21:14:56.509 200 GET /static/js/moment.C7qA8nIE.js (::1) 6.89ms
+2026-04-06 21:14:56.511 200 GET /static/js/withCalculatedWidth.C2I3eFeZ.js (::1) 9.21ms
+2026-04-06 21:14:56.514 200 GET /static/js/FormClearHelper.DFo50Lfo.js (::1) 2.51ms
+2026-04-06 21:14:56.516 200 GET /static/js/formatMoment.C6Hwn6X5.js (::1) 3.58ms
+2026-04-06 21:14:56.517 200 GET /static/js/formatNumber.BdmueDpm.js (::1) 3.92ms
+2026-04-06 21:14:56.519 200 GET /static/js/useBasicWidgetState.CI9LlGGe.js (::1) 2.15ms
+2026-04-06 21:14:56.523 200 GET /static/js/numbro.B9_PXfzp.js (::1) 2.53ms
+2026-04-06 21:14:56.526 200 GET /static/js/sprintfjs.DSsuEWyc.js (::1) 2.50ms
+2026-04-06 21:14:56.528 200 GET /static/js/index.BWFOPccf.js (::1) 3.91ms
+2026-04-06 21:14:56.529 200 GET /static/js/WidgetLabelHelpIconInline.p-GgbwF5.js (::1) 4.76ms
+2026-04-06 21:14:56.532 200 GET /static/js/checkbox.DjX9W7TF.js (::1) 2.44ms
+2026-04-06 21:14:56.590 200 GET /static/media/SourceSansVF-Italic.ttf.Bt9VkdQ3.woff2 (::1) 2.03ms
+2026-04-06 21:14:56.655 200 GET /static/js/index.T5irKb0S.js (::1) 1.11ms
+2026-04-06 21:14:56.659 200 GET /static/js/iconPosition.BnTrQB0J.js (::1) 1.15ms
+2026-04-06 21:14:57.018 200 GET /static/js/index.CFT5eRxg.js (::1) 338.07ms
+2026-04-06 21:14:57.022 200 GET /static/js/withFullScreenWrapper.cN232UBk.js (::1) 341.05ms
+2026-04-06 21:14:57.422 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+2026-04-06 21:14:57.448 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+2026-04-06 21:14:57.467 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+2026-04-06 21:14:58.477 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+2026-04-06 21:14:59.489 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+2026-04-06 21:14:59.998 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+2026-04-06 21:15:00.508 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+2026-04-06 21:15:01.018 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+2026-04-06 21:15:01.530 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+2026-04-06 21:15:02.040 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+2026-04-06 21:15:02.551 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+2026-04-06 21:15:03.061 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+2026-04-06 21:15:09.275 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+2026-04-06 21:15:09.397 200 GET /static/js/StreamlitSyntaxHighlighter.CmYHPzGN.js (::1) 89.86ms
+2026-04-06 21:15:09.918 200 GET /static/media/SourceCodeVF-Upright.ttf.BjWn63N-.woff2 (::1) 1.50ms
+2026-04-06 21:15:11.397 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+2026-04-06 21:15:11.415 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+2026-04-06 21:15:11.952 200 GET /static/js/index.CcxyijN-.js (::1) 2.48ms
+  Stopping...
