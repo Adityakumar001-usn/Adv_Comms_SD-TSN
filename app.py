@@ -195,6 +195,8 @@ def run_cached_sim_iterations(f1_payload, f2_max, gcl_config, hyper_period, tas_
         for flow in flows:
             sim.start_flow(flow)
 
+        print(f"[BACKEND LOG] Running TSNSimulator for payload size: {payload} Bytes...")
+
         sim.run(200000) # Run for 200ms
 
         f1_latencies = sim.latencies.get("Flow1", [])
