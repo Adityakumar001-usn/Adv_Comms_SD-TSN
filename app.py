@@ -802,7 +802,8 @@ if st.session_state.demo_phase == 4 and not st.session_state.is_running:
             payloads, p7_lats, p0_lats, _ = run_cached_sim_iterations(critical_payload_size, interference_max_payload, gcl_config, hyper_period, tas_enabled=tas_enabled, attack_active=False, expand_topology=expand_network, link_speed_mbps=link_speed, sim_duration_ms=attack_duration_ms)
 
             for idx, p in enumerate(payloads):
-                sim_time_ms = (idx + 1) * 40  # Just a visual multiplier for the clock
+                step_size_ms = attack_duration_ms // 5
+                sim_time_ms = (idx + 1) * step_size_ms
                 simpy_clock.metric("Virtual Time Passed", f"{sim_time_ms} ms")
                 q0_percent = min(100, int((p / interference_max_payload) * 100))
                 queue_buffer_placeholder.html(draw_queue_buffers(q0_fill=q0_percent, q7_fill=0, gate0_open=True, gate7_open=False, tas_enabled=tas_enabled))
@@ -839,7 +840,8 @@ if st.session_state.demo_phase == 4 and not st.session_state.is_running:
                 payloads, p7_lats, p0_lats, dropped = run_cached_sim_iterations(critical_payload_size, interference_max_payload, gcl_config, hyper_period, tas_enabled=True, attack_active=True, expand_topology=expand_network, link_speed_mbps=link_speed, sim_duration_ms=attack_duration_ms)
 
                 for idx, p in enumerate(payloads):
-                    sim_time_ms = (idx + 1) * 40
+                    step_size_ms = attack_duration_ms // 5
+                    sim_time_ms = (idx + 1) * step_size_ms
                     simpy_clock_attack.metric("Virtual Time Passed", f"{sim_time_ms} ms")
                     q0_percent = min(100, int((p / interference_max_payload) * 100))
                     # Show P7 queue slightly filling but dropping, maybe just flash red

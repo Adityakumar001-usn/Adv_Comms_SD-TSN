@@ -8,6 +8,7 @@ to protect high-priority traffic from massive background interference.
 """
 
 import pulp
+import math
 from typing import List, Dict, Tuple
 from models import Flow, Topology
 
@@ -36,7 +37,8 @@ class ILPScheduler:
         # truck to clear the road at our current link speed, and we close the Priority 0 gate exactly that long before
         # the Priority 7 window opens.
         # Formula: Time (us) = (Bits) / (Speed Mbps) -> (1522 * 8) / 100 = 121.76 µs
-        self.guard_band = (self.MTU * 8) / self.link_speed_mbps
+        raw_guard_band_us = (self.MTU * 8) / self.link_speed_mbps
+        self.guard_band = math.ceil(raw_guard_band_us) + 2.0
 
     def transmission_duration(self, payload_bytes: int) -> float:
         """Calculate transmission duration in microseconds for a given payload + framing."""
