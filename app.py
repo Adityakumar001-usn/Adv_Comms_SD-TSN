@@ -936,7 +936,7 @@ if st.session_state.demo_phase == 5:
 
 
 # Persist visual elements if phase completes
-if not st.session_state.is_running and st.session_state.demo_phase == 4:
+if not st.session_state.is_running and st.session_state.demo_phase == 6:
     topo_placeholder.plotly_chart(create_network_topology(), use_container_width=True, key="topo_persist")
     gantt_placeholder.plotly_chart(draw_gantt_chart(), use_container_width=True, key="gantt_persist")
 
