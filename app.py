@@ -583,7 +583,7 @@ def draw_gantt_chart(current_time=None, ilp_results=None, tas_enabled=True):
     )
     return fig
 
-def draw_queue_buffers(q0_fill, q7_fill, gate0_open, gate7_open):
+def draw_queue_buffers(q0_fill, q7_fill, gate0_open, gate7_open, tas_enabled=True):
     """Draws custom HTML/CSS progress bars representing the live switch egress port queues."""
     g0_color = "#4ade80" if gate0_open else "#4b5563"
     g0_text = "OPEN" if gate0_open else "CLOSED"
@@ -591,8 +591,14 @@ def draw_queue_buffers(q0_fill, q7_fill, gate0_open, gate7_open):
     g7_color = "#4ade80" if gate7_open else "#4b5563"
     g7_text = "OPEN" if gate7_open else "CLOSED"
 
+    container_style = "background-color: #111827; padding: 15px; border-radius: 8px; border: 1px solid #1f2937;"
+    if not tas_enabled:
+        container_style += " opacity: 0.4;"
+    else:
+        container_style += " box-shadow: 0 0 15px rgba(74, 222, 128, 0.2);"
+
     html = f"""
-<div style="background-color: #111827; padding: 15px; border-radius: 8px; border: 1px solid #1f2937;">
+<div style="{container_style}">
     <h5 style="color: white; margin-bottom: 10px;">Switch Egress Port: Live Queue State</h5>
 
     <!-- Queue 7 -->
@@ -767,6 +773,11 @@ if st.session_state.demo_phase == 4 and not st.session_state.is_running:
             st.markdown("Test the deterministic guarantees of the Time-Aware Shaper (TAS) against unshaped Strict Priority routing.")
             tas_enabled = st.toggle("Enable IEEE 802.1Qbv TAS", value=True, help="Toggle to compare shaped traffic vs. unshaped traffic.")
 
+            if not tas_enabled:
+                st.error("⚠️ **MODE: Best-Effort (Legacy SP)**  \n*Gate Control List is INACTIVE. Priority 0 traffic is unregulated, causing the latency spikes seen in the chart below.*")
+            else:
+                st.success("🛡️ **MODE: Deterministic (SD-TSN)**  \n*GCL Active. The ILP Scheduler is physically policing the egress gates to protect the microsecond critical window.*")
+
             with gantt_placeholder.container():
                 st.plotly_chart(draw_gantt_chart(ilp_results=ilp_results, tas_enabled=tas_enabled), use_container_width=True, key=f"tab1_gantt_{tas_enabled}")
 
@@ -781,8 +792,8 @@ if st.session_state.demo_phase == 4 and not st.session_state.is_running:
                 sim_time_ms = (idx + 1) * 40  # Just a visual multiplier for the clock
                 simpy_clock.metric("Virtual Time Passed", f"{sim_time_ms} ms")
                 q0_percent = min(100, int((p / interference_max_payload) * 100))
-                queue_buffer_placeholder.html(draw_queue_buffers(q0_fill=q0_percent, q7_fill=0, gate0_open=True, gate7_open=False))
-                time.sleep(0.3)
+                queue_buffer_placeholder.html(draw_queue_buffers(q0_fill=q0_percent, q7_fill=0, gate0_open=True, gate7_open=False, tas_enabled=tas_enabled))
+                time.sleep(1.0)
 
             final_p7 = p7_lats[-1]
             jitter = final_p7 - expected_latency
@@ -819,8 +830,8 @@ if st.session_state.demo_phase == 4 and not st.session_state.is_running:
                     simpy_clock_attack.metric("Virtual Time Passed", f"{sim_time_ms} ms")
                     q0_percent = min(100, int((p / interference_max_payload) * 100))
                     # Show P7 queue slightly filling but dropping, maybe just flash red
-                    queue_buffer_placeholder.html(draw_queue_buffers(q0_fill=q0_percent, q7_fill=0, gate0_open=True, gate7_open=False))
-                    time.sleep(0.3)
+                    queue_buffer_placeholder.html(draw_queue_buffers(q0_fill=q0_percent, q7_fill=0, gate0_open=True, gate7_open=False, tas_enabled=True))
+                    time.sleep(1.0)
 
                 col_sec1, col_sec2 = st.columns(2)
                 col_sec1.markdown(f"<div class='metric-card' style='border: 1px solid #ff4b4b;'><strong>Security Analytics</strong><br><span style='font-size:24px; color:#ff4b4b;'>{dropped:,}</span><br><small>Spoofed Packets Dropped</small></div>", unsafe_allow_html=True)
@@ -904,7 +915,8 @@ if st.session_state.demo_phase == 5:
         q7_fill = max(0, 100 - (100 * (t / t_trans))) # Draining
     else:
         gate0_open = True
-        gate7_open = False
+        # Keep gate7 visually open for an extra 100us in the slow-mo UI (SimPy buffer equivalent)
+        gate7_open = True if (t <= t_trans + 100) else False
         q0_fill = max(0, 100 - (100 * ((t - t_trans) / 200))) # Draining slowly
         q7_fill = 0
 
@@ -959,7 +971,9 @@ if not st.session_state.is_running and st.session_state.demo_phase == 6:
 
     with col_bottom2:
         # Re-render HTML buffers with st.html to avoid Markdown indentation trap
-        queue_html = draw_queue_buffers(q0_fill=100, q7_fill=0, gate0_open=True, gate7_open=False)
+        # Need to know the current toggle state if possible, but persistent view is typically end of a run.
+        # We can assume it was true or store tas_enabled in session state. We default to True.
+        queue_html = draw_queue_buffers(q0_fill=100, q7_fill=0, gate0_open=True, gate7_open=False, tas_enabled=True)
         st.html(queue_html)
 
     with chart_placeholder.container():

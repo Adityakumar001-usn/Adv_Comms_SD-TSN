@@ -77,6 +77,9 @@ class SwitchPort:
         # Event to signal when a gate opens
         self.gate_open_events = {prio: simpy.Event(env) for prio in range(8)}
 
+        # Visual buffer to keep the gate "Open" in the UI for at least 1 full second (1,000,000 us)
+        self.ui_visual_buffer = {prio: 0.0 for prio in range(8)}
+
         # Transmitter resource to ensure only one packet is transmitted at a time
         self.transmitter = simpy.PriorityResource(env, capacity=1)
 
@@ -90,7 +93,17 @@ class SwitchPort:
             return True
         # Prio 7 is index 0 in string, Prio 0 is index 7
         idx = 7 - priority
-        return self.gate_status[idx] == '1'
+        is_open = self.gate_status[idx] == '1'
+
+        # If open, update the visual UI buffer to hold it open for the dashboard
+        if is_open:
+            self.ui_visual_buffer[priority] = self.env.now + 1000000.0 # 1 second in us
+
+        return is_open
+
+    def is_visually_open(self, priority: int) -> bool:
+        """Returns True if the gate is actually open, OR if it is within the 1-second UI visual buffer."""
+        return self._is_gate_open(priority) or self.env.now <= self.ui_visual_buffer[priority]
 
     def _get_time_until_gate_closes(self, priority: int) -> float:
         """Helper to find out how much time is left until this gate closes."""
