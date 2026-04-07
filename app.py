@@ -198,7 +198,7 @@ def run_cached_sim_iterations(f1_payload, f2_max, gcl_config, hyper_period, tas_
         for flow in flows:
             sim.start_flow(flow)
 
-        print(f"[BACKEND LOG] Running TSNSimulator for payload size: {payload} Bytes...")
+        print(f"[BACKEND LOG] Running TSNSimulator for payload size: {payload} Bytes...", flush=True)
 
         sim_duration_us = sim_duration_ms * 1000
         sim.run(sim_duration_us)
@@ -729,6 +729,11 @@ if st.session_state.is_running and st.session_state.demo_phase == 0:
         status_text.success("Phase 3: Deploying GCL and Initializing SimPy Engine...")
         current_logs += "[CNC] Compiling YANG-style XML Configurations...\n"
         log_placeholder.markdown(write_terminal_log(current_logs), unsafe_allow_html=True)
+
+        # Write network config XML to file
+        with open("network_config.xml", "w") as f:
+            f.write(ilp_results.get("xml_output", ""))
+
         time.sleep(1.0)
 
         current_logs += "[SimPy] Initializing Discrete-Event Physics Engine...\n"

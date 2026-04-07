@@ -41,7 +41,7 @@ The backend engine validates the determinism of the network using four key compo
 ### 3. Gate Control List (GCL) Generation (`gcl.py`)
 *   Calculates the network-wide hyper-period (50,000 µs based on the LCM of the flows).
 *   Generates exact open/close timings for Priority 7 and Priority 0 queues across all switches to physically enforce the ILP constraints.
-*   Outputs the finalized switch schedules to a structured XML (`network_config.xml`) mimicking a YANG model.
+*   Outputs the finalized switch schedules to a structured XML (`network_config.xml`) mimicking a YANG model. During the Streamlit Live Demo Phase 3, this file is explicitly overwritten to allow real-time inspection of the hardware rules.
 
 ### 4. SimPy Discrete-Event Simulation (`simulator.py`, `run_simulation.py`)
 *   A custom SimPy "Physics Engine" modeling the physical 100 Mbps links, switch forwarding delays, and strict Priority queuing (enforcing the calculated GCL timings).
