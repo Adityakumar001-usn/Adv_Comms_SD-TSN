@@ -89,20 +89,29 @@ class SwitchPort:
             self.env.process(self.queue_processor(prio))
 
     def _is_gate_open(self, priority: int) -> bool:
+        """Checks if a specific priority queue is currently permitted to transmit data (Gate is '1')."""
         if not self.tas_enabled:
-            return True
-        # Prio 7 is index 0 in string, Prio 0 is index 7
+            return True # Legacy Best-Effort networking: All gates are always permanently open!
+
+        # The Gate Control List (GCL) uses a binary string: '00000000'
+        # The leftmost bit (index 0) controls Priority 7 (Mission Critical).
+        # The rightmost bit (index 7) controls Priority 0 (Background Traffic).
         idx = 7 - priority
         is_open = self.gate_status[idx] == '1'
 
-        # If open, update the visual UI buffer to hold it open for the dashboard
+        # UI HACK: Because SimPy processes microsecond (µs) events faster than the
+        # Streamlit Python frontend can paint pixels to a browser, a 81µs "Gate Open"
+        # window would be invisible to the human eye.
+        # This "visual buffer" tricks the Streamlit UI (app.py) into holding the
+        # HTML progress bar "Green" for a full 1,000,000 µs (1 second) so the presenter
+        # can actually point at it during the live demo. This does *not* affect the math.
         if is_open:
             self.ui_visual_buffer[priority] = self.env.now + 1000000.0 # 1 second in us
 
         return is_open
 
     def is_visually_open(self, priority: int) -> bool:
-        """Returns True if the gate is actually open, OR if it is within the 1-second UI visual buffer."""
+        """Returns True if the gate is actually open in SimPy, OR if it is within the 1-second UI visual buffer."""
         return self._is_gate_open(priority) or self.env.now <= self.ui_visual_buffer[priority]
 
     def _get_time_until_gate_closes(self, priority: int) -> float:

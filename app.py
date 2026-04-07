@@ -594,7 +594,10 @@ def draw_gantt_chart(current_time=None, ilp_results=None, tas_enabled=True):
     return fig
 
 def draw_queue_buffers(q0_fill, q7_fill, gate0_open, gate7_open, tas_enabled=True):
-    """Draws custom HTML/CSS progress bars representing the live switch egress port queues."""
+    """
+    Draws custom HTML/CSS progress bars representing the live switch egress port queues.
+    This bypasses standard Streamlit limitations to create a smooth, reactive animation.
+    """
     g0_color = "#4ade80" if gate0_open else "#4b5563"
     g0_text = "OPEN" if gate0_open else "CLOSED"
 

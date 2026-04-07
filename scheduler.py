@@ -19,15 +19,24 @@ class ILPScheduler:
         self.topology = topology
         self.routing = routing
 
-        # Constants
+        # Physical Link Constants
+        # `link_speed_mbps`: How fast data moves across the copper wire (e.g., 100 Mbps).
         self.link_speed_mbps = link_speed_mbps
-        self.d_proc = 2.0  # microseconds
-        self.compensation = 1.0  # microseconds
-        self.MTU = 1522  # Bytes
+        # `d_proc`: Store-and-forward processing delay inside the hardware switch chip (2.0 µs).
+        self.d_proc = 2.0
+        # `compensation`: A small buffer (1.0 µs) added to the start/end of a scheduled window to handle physical jitter.
+        self.compensation = 1.0
+        # `MTU` (Maximum Transmission Unit): The largest possible standard Ethernet frame (1500 bytes payload + 22 bytes overhead).
+        self.MTU = 1522
 
-        # Dynamically calculated Guard Band
-        # Ensure Priority 7 is safe from a full Priority 0 MTU frame on the wire
-        self.guard_band = (self.MTU * 8) / self.link_speed_mbps  # microseconds
+        # The SD-TSN Guard Band Formula:
+        # A low-priority (Best-Effort) frame cannot be preempted once it starts transmitting on the wire.
+        # If a massive 1522-byte delivery truck (Priority 0) blocks the road right as our ambulance (Priority 7) arrives,
+        # the ambulance is delayed. To prevent this, we mathematically calculate exactly how long it takes a 1522-byte
+        # truck to clear the road at our current link speed, and we close the Priority 0 gate exactly that long before
+        # the Priority 7 window opens.
+        # Formula: Time (us) = (Bits) / (Speed Mbps) -> (1522 * 8) / 100 = 121.76 µs
+        self.guard_band = (self.MTU * 8) / self.link_speed_mbps
 
     def transmission_duration(self, payload_bytes: int) -> float:
         """Calculate transmission duration in microseconds for a given payload + framing."""

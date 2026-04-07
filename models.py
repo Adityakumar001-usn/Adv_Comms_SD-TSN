@@ -78,13 +78,17 @@ class Topology:
         self.add_bidirectional_link('GW', 'SW4')
         self.add_bidirectional_link('GW', 'PC')
 
-        # Switches form a ring around gateway: SW1 connects to SW2 and SW3; SW4 connects to SW2 and SW3
+        # Core Architecture: Switches form a redundant ring around the Central Gateway
+        # This mirrors modern Zonal Automotive architectures where SW1 might be the "Front Left Zone"
+        # and SW4 might be the "Rear Right Zone".
         self.add_bidirectional_link('SW1', 'SW2', self.link_speed_mbps)
         self.add_bidirectional_link('SW1', 'SW3', self.link_speed_mbps)
         self.add_bidirectional_link('SW4', 'SW2', self.link_speed_mbps)
         self.add_bidirectional_link('SW4', 'SW3', self.link_speed_mbps)
 
         if self.expand_topology:
+            # Dynamic UI Expansion: Simulates adding a new "Trailer Zone" or "Roof Sensor Zone" (SW5)
+            # and a new endpoint (E4) to test if the routing algorithms adapt instantly.
             self.add_bidirectional_link('SW4', 'SW5', self.link_speed_mbps)
             self.add_bidirectional_link('SW5', 'E4', self.link_speed_mbps)
 

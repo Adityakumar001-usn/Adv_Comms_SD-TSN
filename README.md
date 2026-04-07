@@ -76,12 +76,16 @@ A professional, interactive dashboard built with Streamlit serves as the primary
 
 ### Dynamic Backend Integration & Controls
 
-The dashboard is no longer hardcoded. All visuals and metrics are driven dynamically by the `scheduler.py` and `simulator.py` modules.
-Using the **Simulation Settings Sidebar**, users can adjust:
-*   **Critical Payload Size (Bytes):** Slide from 128B up to 1500B to see the ILP dynamically resize the required Priority 7 transmission window (`t_trans`).
-*   **Interference Payload Max (Bytes):** Slide from 1,000B up to 150,000B to define the severity of the SimPy stress test in Phase 4.
+The dashboard is completely interactive and no longer hardcoded. All visuals, mathematical models, and network metrics are dynamically rebuilt from scratch by the `scheduler.py` and `simulator.py` engines whenever you change a setting.
 
-When "Start Live Demo" is clicked, `app.py` recalculates the precise Guard Band requirements using PuLP, regenerates the GCL, and executes the physical layer SimPy validation in real-time.
+Using the **Simulation Settings Sidebar**, users can adjust:
+*   **Expand Network (Add SW5 & E4):** Watch the zonal architecture dynamically extend. `NetworkX` instantly draws the new topology, and Dijkstra's algorithm immediately recalculates the Layer 2 forwarding routes to accommodate the new endpoints.
+*   **Physical Link Speed:** Toggle between Legacy Fast Ethernet (`100 Mbps`) and Gigabit Ethernet (`1000 Mbps`). Watch the math solver instantly shrink the required Guard Band from `121.76 µs` down to `12.17 µs` because Gigabit hardware clears the 1500-Byte MTU interference ten times faster!
+*   **Critical Payload Size (Bytes):** Slide from `128B` up to `1500B` to see the ILP dynamically stretch the required Priority 7 transmission window (`t_trans`).
+*   **Interference Payload Max (Bytes):** Slide from `1,000B` up to `150,000B` to define the severity of the background traffic stress test in Phase 4.
+*   **Simulation Window (ms):** Increase the total runtime of the Scenario B Cyber Attack up to `1,000 ms`. The longer the simulation runs, the more spoofed Priority 7 packets the CNC controller will identify and drop live on screen!
+
+When "Start Live Demo" is clicked, `app.py` recalculates the precise Guard Band requirements using PuLP, regenerates the GCL, and executes the physical layer SimPy validation in real-time based strictly on these selected parameters.
 
 ---
 
