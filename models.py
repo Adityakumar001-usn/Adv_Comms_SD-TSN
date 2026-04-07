@@ -65,18 +65,18 @@ class Topology:
 
         # Add links based on requirements
         # E1 and E2 connect to SW1
-        self.add_bidirectional_link('E1', 'SW1')
-        self.add_bidirectional_link('E2', 'SW1')
+        self.add_bidirectional_link('E1', 'SW1', self.link_speed_mbps)
+        self.add_bidirectional_link('E2', 'SW1', self.link_speed_mbps)
 
         # E3 connects to SW4
-        self.add_bidirectional_link('E3', 'SW4')
+        self.add_bidirectional_link('E3', 'SW4', self.link_speed_mbps)
 
         # GW connects directly to SW1, SW2, SW3, SW4, and PC
-        self.add_bidirectional_link('GW', 'SW1')
-        self.add_bidirectional_link('GW', 'SW2')
-        self.add_bidirectional_link('GW', 'SW3')
-        self.add_bidirectional_link('GW', 'SW4')
-        self.add_bidirectional_link('GW', 'PC')
+        self.add_bidirectional_link('GW', 'SW1', self.link_speed_mbps)
+        self.add_bidirectional_link('GW', 'SW2', self.link_speed_mbps)
+        self.add_bidirectional_link('GW', 'SW3', self.link_speed_mbps)
+        self.add_bidirectional_link('GW', 'SW4', self.link_speed_mbps)
+        self.add_bidirectional_link('GW', 'PC', self.link_speed_mbps)
 
         # Core Architecture: Switches form a redundant ring around the Central Gateway
         # This mirrors modern Zonal Automotive architectures where SW1 might be the "Front Left Zone"

@@ -80,7 +80,7 @@ The dashboard is completely interactive and no longer hardcoded. All visuals, ma
 
 Using the **Simulation Settings Sidebar**, users can adjust:
 *   **Expand Network (Add SW5 & E4):** Watch the zonal architecture dynamically extend. `NetworkX` instantly draws the new topology, and Dijkstra's algorithm immediately recalculates the Layer 2 forwarding routes to accommodate the new endpoints.
-*   **Physical Link Speed:** Toggle between Legacy Fast Ethernet (`100 Mbps`) and Gigabit Ethernet (`1000 Mbps`). Watch the math solver instantly shrink the required Guard Band from `121.76 µs` down to `12.17 µs` because Gigabit hardware clears the 1500-Byte MTU interference ten times faster!
+*   **Physical Link Speed:** Toggle between Legacy Fast Ethernet (`100 Mbps`) and Gigabit Ethernet (`1000 Mbps`). This upgrades every single edge in the NetworkX graph (Endpoints, Switches, Gateways). Watch the math solver instantly shrink the required Guard Band from `121.76 µs` down to `12.17 µs` because Gigabit hardware clears the 1500-Byte MTU interference ten times faster!
 *   **Critical Payload Size (Bytes):** Slide from `128B` up to `1500B` to see the ILP dynamically stretch the required Priority 7 transmission window (`t_trans`).
 *   **Interference Payload Max (Bytes):** Slide from `1,000B` up to `150,000B` to define the severity of the background traffic stress test in Phase 4.
 *   **Simulation Window (ms):** Increase the total runtime of the Scenario B Cyber Attack up to `1,000 ms`. The longer the simulation runs, the more spoofed Priority 7 packets the CNC controller will identify and drop live on screen!

@@ -48,6 +48,9 @@ class CNCRouting:
         """
         Computes the shortest physical path through the network for each flow.
         Uses NetworkX Dijkstra's algorithm to find the optimal route from source to destination.
+
+        Example: If Flow 1 is E1 -> E3, this checks the graph and might return:
+        ['E1', 'SW1', 'GW', 'SW4', 'E3']
         """
         routes = {}
         for flow in flows:
@@ -56,7 +59,12 @@ class CNCRouting:
         return routes
 
     def generate_l2_lookup_tables(self, flows: List[Flow]) -> Dict[str, List[Dict[str, Any]]]:
-        """Generates L2 lookup table entries for each node mimicking YANG models."""
+        """
+        Generates L2 lookup table entries for each node mimicking standard YANG hardware models.
+
+        In simple terms: It tells each switch "If you receive a packet with Destination MAC X
+        on Ingress Port Y, forward it out Egress Port Z".
+        """
         routes = self.compute_routes(flows)
         l2_tables = {node: [] for node in self.topology.graph.nodes}
 

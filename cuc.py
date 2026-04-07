@@ -26,6 +26,7 @@ class MockCUC:
         """
         # Flow 1 (Time-Sensitive): Mission Critical (e.g., LiDAR or electronic steering control)
         # This flow must strictly maintain a <= 500 us latency boundary.
+        # It's given Priority 7 (the highest IEEE 802.1Q priority) to ensure it gets scheduled perfectly.
         flow1 = Flow(
             flow_id="Flow1",
             source="E1",
@@ -38,6 +39,8 @@ class MockCUC:
 
         # Flow 2 (Interference): E2 to E3, Priority 0, 10ms period, variable payload (3200 to 102400 Bytes).
         # We define a base payload for generation; actual simulations will vary it.
+        # It's given Priority 0 (Best-Effort). This is the "Delivery Truck" traffic that we must prevent
+        # from blocking the Priority 7 "Ambulance" traffic.
         flow2 = Flow(
             flow_id="Flow2",
             source="E2",
