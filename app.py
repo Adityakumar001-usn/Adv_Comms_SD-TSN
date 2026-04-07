@@ -439,7 +439,7 @@ with col1:
     if st.session_state.demo_phase == 0 and not st.session_state.is_running:
         topo_placeholder.markdown("<div class='placeholder-box'><h4>Zonal Topology</h4><p>Awaiting Phase 1: Discovery...</p></div>", unsafe_allow_html=True)
     elif st.session_state.demo_phase >= 1:
-        topo_placeholder.plotly_chart(create_network_topology(expand_topology=expand_network), use_container_width=True, key="init_topo")
+        topo_placeholder.plotly_chart(create_network_topology(expand_topology=expand_network), width="stretch", key="init_topo")
 
 with col2:
     st.markdown("### Demo Controls")
@@ -468,13 +468,13 @@ col_bottom1, col_bottom2 = st.columns([1, 1])
 with col_bottom1:
     chart_placeholder = st.empty()
     if st.session_state.demo_phase < 4:
-        chart_placeholder.plotly_chart(draw_empty_chart("Real-Time End-to-End Latency vs. Payload", "Flow 2 Payload Size (Bytes)", "Latency (µs)"), use_container_width=True, key="init_chart")
+        chart_placeholder.plotly_chart(draw_empty_chart("Real-Time End-to-End Latency vs. Payload", "Flow 2 Payload Size (Bytes)", "Latency (µs)"), width="stretch", key="init_chart")
 
 with col_bottom2:
     gantt_placeholder = st.empty()
     queue_buffer_placeholder = st.empty() # Added placeholder for the queue buffers
     if st.session_state.demo_phase < 3:
-        gantt_placeholder.plotly_chart(draw_empty_chart("Switch Egress TAS Schedule", "Time relative to Cycle Start (µs)", ""), use_container_width=True, key="init_gantt")
+        gantt_placeholder.plotly_chart(draw_empty_chart("Switch Egress TAS Schedule", "Time relative to Cycle Start (µs)", ""), width="stretch", key="init_gantt")
 
 st.markdown("### Simulated Live Logs")
 log_placeholder = st.empty()
@@ -662,27 +662,27 @@ if st.session_state.is_running and st.session_state.demo_phase == 0:
         status_text.info("Phase 1: Building Digital Twin - Physical Layer & Links")
 
         # Nodes
-        topo_placeholder.plotly_chart(create_network_topology(stage="nodes", expand_topology=expand_network), use_container_width=True, key="p1_nodes")
+        topo_placeholder.plotly_chart(create_network_topology(stage="nodes", expand_topology=expand_network), width="stretch", key="p1_nodes")
         time.sleep(1.0)
 
         # Links
         current_logs += f"[Digital Twin] Layer 1: Establishing {link_speed}Mbps Ethernet Links...\n"
         log_placeholder.markdown(write_terminal_log(current_logs), unsafe_allow_html=True)
-        topo_placeholder.plotly_chart(create_network_topology(stage="links", expand_topology=expand_network), use_container_width=True, key="p1_links")
+        topo_placeholder.plotly_chart(create_network_topology(stage="links", expand_topology=expand_network), width="stretch", key="p1_links")
         time.sleep(1.0)
 
         # Routing Flow 1
         current_logs += f"[CUC] Provisioning Flow 1: Mission-Critical (Prio 7), Payload: {critical_payload_size} Bytes.\n"
         log_placeholder.markdown(write_terminal_log(current_logs), unsafe_allow_html=True)
         for hops in range(1, 5): # 4 edges
-            topo_placeholder.plotly_chart(create_network_topology(stage="flow1_routing", flow1_hops=hops, expand_topology=expand_network), use_container_width=True, key=f"p1_f1_{hops}")
+            topo_placeholder.plotly_chart(create_network_topology(stage="flow1_routing", flow1_hops=hops, expand_topology=expand_network), width="stretch", key=f"p1_f1_{hops}")
             time.sleep(0.5)
 
         # Routing Flow 2
         current_logs += f"[CUC] Provisioning Flow 2: Best-Effort Interference (Prio 0), Max Payload: {interference_max_payload} Bytes.\n"
         log_placeholder.markdown(write_terminal_log(current_logs), unsafe_allow_html=True)
         for hops in range(1, 5): # 4 edges
-            topo_placeholder.plotly_chart(create_network_topology(stage="flow2_routing", flow1_hops=4, flow2_hops=hops, expand_topology=expand_network), use_container_width=True, key=f"p1_f2_{hops}")
+            topo_placeholder.plotly_chart(create_network_topology(stage="flow2_routing", flow1_hops=4, flow2_hops=hops, expand_topology=expand_network), width="stretch", key=f"p1_f2_{hops}")
             time.sleep(0.5)
 
         # Phase 1 -> 2: Optimization (ILP Deep-Dive)
@@ -738,7 +738,7 @@ if st.session_state.is_running and st.session_state.demo_phase == 0:
 
         current_logs += "[SimPy] Initializing Discrete-Event Physics Engine...\n"
         log_placeholder.markdown(write_terminal_log(current_logs), unsafe_allow_html=True)
-        gantt_placeholder.plotly_chart(draw_gantt_chart(), use_container_width=True, key="phase3_gantt")
+        gantt_placeholder.plotly_chart(draw_gantt_chart(), width="stretch", key="phase3_gantt")
         queue_buffer_placeholder.html(draw_queue_buffers(q0_fill=0, q7_fill=0, gate0_open=True, gate7_open=False))
 
         current_logs += "[CNC] Deployed Gate Control Lists successfully to SW1, SW2, SW3, SW4.\n"
@@ -763,12 +763,15 @@ if st.session_state.demo_phase == 4 and not st.session_state.is_running:
     log_placeholder.markdown(write_terminal_log(st.session_state.final_logs), unsafe_allow_html=True)
 
     # Restore persistent UI elements from previous phases
-    topo_placeholder.plotly_chart(create_network_topology(expand_topology=expand_network), use_container_width=True, key="p4_topo")
+    topo_placeholder.plotly_chart(create_network_topology(expand_topology=expand_network), width="stretch", key="p4_topo")
 
-    expected_latency = st.session_state.backend_results.get('expected_latency', 0.0)
-    gcl_config = st.session_state.backend_results.get('gcl_config', {})
-    hyper_period = st.session_state.backend_results.get('hyper_period', 50000.0)
-    ilp_results = st.session_state.backend_results
+    # Dynamically recalculate ILP results so moving the sliders updates the microsecond offsets in real-time
+    ilp_results = calculate_ilp_schedule(critical_payload_size, expand_network, link_speed)
+    st.session_state.backend_results = ilp_results # update session state too so Phase 5 gets the right data
+
+    expected_latency = ilp_results.get('expected_latency', 0.0)
+    gcl_config = ilp_results.get('gcl_config', {})
+    hyper_period = ilp_results.get('hyper_period', 50000.0)
 
     with chart_placeholder.container():
         # Live XML Expander (moved up)
@@ -797,7 +800,7 @@ if st.session_state.demo_phase == 4 and not st.session_state.is_running:
                 st.success("🛡️ **MODE: Deterministic (SD-TSN)**  \n*GCL Active. The ILP Scheduler is physically policing the egress gates to protect the microsecond critical window.*")
 
             with gantt_placeholder.container():
-                st.plotly_chart(draw_gantt_chart(ilp_results=ilp_results, tas_enabled=tas_enabled), use_container_width=True, key=f"tab1_gantt_{tas_enabled}")
+                st.plotly_chart(draw_gantt_chart(ilp_results=ilp_results, tas_enabled=tas_enabled), width="stretch", key=f"tab1_gantt_{tas_enabled}")
 
             # Metric for SimPy Clock
             st.markdown("### ⏱️ SimPy Discrete-Event Clock")
@@ -823,7 +826,7 @@ if st.session_state.demo_phase == 4 and not st.session_state.is_running:
             else:
                 col_m1.markdown(f"<div class='metric-card glow-text'><strong>Status: Unsafe</strong><br><span style='font-size:24px; color:#ff4b4b;'>Jitter: +{jitter:.2f} µs</span></div>", unsafe_allow_html=True)
 
-            st.plotly_chart(draw_latency_chart(payloads, p7_lats, p0_lats, expected_latency), use_container_width=True, key=f"tab1_latency_{tas_enabled}")
+            st.plotly_chart(draw_latency_chart(payloads, p7_lats, p0_lats, expected_latency), width="stretch", key=f"tab1_latency_{tas_enabled}")
 
             st.session_state.backend_results['payloads'] = payloads
             st.session_state.backend_results['p7_latencies'] = p7_lats
@@ -836,7 +839,7 @@ if st.session_state.demo_phase == 4 and not st.session_state.is_running:
             if attack_btn:
                 st.error("⚠️ CRITICAL: UNAUTHORIZED PRIORITY 7 INGRESS DETECTED AT SW1")
                 with topo_placeholder.container():
-                    st.plotly_chart(create_network_topology(attack_active=True, expand_topology=expand_network), use_container_width=True, key="tab2_topo_attack")
+                    st.plotly_chart(create_network_topology(attack_active=True, expand_topology=expand_network), width="stretch", key="tab2_topo_attack")
 
                 # Metric for SimPy Clock
                 st.markdown("### ⏱️ SimPy Discrete-Event Clock")
@@ -857,13 +860,13 @@ if st.session_state.demo_phase == 4 and not st.session_state.is_running:
                 col_sec1.markdown(f"<div class='metric-card' style='border: 1px solid #ff4b4b;'><strong>Security Analytics</strong><br><span style='font-size:24px; color:#ff4b4b;'>{dropped:,}</span><br><small>Spoofed Packets Dropped</small></div>", unsafe_allow_html=True)
                 col_sec2.markdown(f"<div class='metric-card glow-text'><strong>Flow 1 (Prio 7) Integrity</strong><br><span style='font-size:24px; color:#4ade80;'>100% Maintained</span><br><small>0.00 µs Delay Induced</small></div>", unsafe_allow_html=True)
 
-                st.plotly_chart(draw_latency_chart(payloads, p7_lats, p0_lats, expected_latency), use_container_width=True, key="tab2_latency_attack")
+                st.plotly_chart(draw_latency_chart(payloads, p7_lats, p0_lats, expected_latency), width="stretch", key="tab2_latency_attack")
             else:
                 st.info("System Secure. Awaiting Trigger.")
                 payloads = st.session_state.backend_results.get('payloads', [1000])
                 p7_lats = st.session_state.backend_results.get('p7_latencies', [0.0])
                 p0_lats = st.session_state.backend_results.get('p0_latencies', [0.0])
-                st.plotly_chart(draw_latency_chart(payloads, p7_lats, p0_lats, expected_latency), use_container_width=True, key="tab2_latency_idle")
+                st.plotly_chart(draw_latency_chart(payloads, p7_lats, p0_lats, expected_latency), width="stretch", key="tab2_latency_idle")
 
 
     col_end1, col_end2 = st.columns(2)
@@ -952,10 +955,10 @@ if st.session_state.demo_phase == 5:
             st.session_state.demo_phase = 4 # Revert to finished state
             st.rerun()
 
-    topo_placeholder.plotly_chart(create_network_topology(expand_topology=expand_network), use_container_width=True, key="topo_p5")
+    topo_placeholder.plotly_chart(create_network_topology(expand_topology=expand_network), width="stretch", key="topo_p5")
 
     # Update chart and buffer dynamically
-    gantt_placeholder.plotly_chart(draw_gantt_chart(current_time=t), use_container_width=True, key="gantt_p5")
+    gantt_placeholder.plotly_chart(draw_gantt_chart(current_time=t), width="stretch", key="gantt_p5")
     queue_buffer_placeholder.html(draw_queue_buffers(q0_fill=q0_fill, q7_fill=q7_fill, gate0_open=gate0_open, gate7_open=gate7_open))
 
     log_msg = st.session_state.final_logs + f"\n[Clock] Current Time: {t:.2f} µs | P0 Gate: {'OPEN' if gate0_open else 'CLOSED'} | P7 Gate: {'OPEN' if gate7_open else 'CLOSED'}"
@@ -966,13 +969,13 @@ if st.session_state.demo_phase == 5:
     fig.add_trace(go.Scatter(x=payloads, y=p7_latencies, mode='lines+markers', name='Flow 1: Mission-Critical', line=dict(color='#ff4b4b', width=4), marker=dict(size=10)))
     fig.add_trace(go.Scatter(x=payloads, y=p0_latencies, mode='lines+markers', name='Flow 2: Interference', line=dict(color='#faca2b', width=3, dash='dash'), marker=dict(size=10), yaxis='y2'))
     fig.update_layout(title=dict(text="Real-Time End-to-End Latency vs. Interference Payload", font=dict(color='white')), xaxis=dict(title=dict(text="Flow 2 Payload Size (Bytes)", font=dict(color='white')), type="category", tickfont=dict(color='white')), yaxis=dict(title=dict(text="Flow 1 Latency (µs)", font=dict(color="#ff4b4b")), tickfont=dict(color="#ff4b4b"), range=[0, max(1000, expected_latency * 1.5)]), yaxis2=dict(title=dict(text="Flow 2 Latency (µs)", font=dict(color="#faca2b")), tickfont=dict(color="#faca2b"), overlaying='y', side='right', range=[0, max(20000, p0_latencies[-1] * 1.2)]), legend=dict(x=0.01, y=0.99, bgcolor='rgba(0,0,0,0.5)', font=dict(color='white')), plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', margin=dict(l=40, r=40, t=40, b=40), height=300)
-    chart_placeholder.plotly_chart(fig, use_container_width=True, key="chart_p5")
+    chart_placeholder.plotly_chart(fig, width="stretch", key="chart_p5")
 
 
 # Persist visual elements if phase completes
 if not st.session_state.is_running and st.session_state.demo_phase == 6:
-    topo_placeholder.plotly_chart(create_network_topology(expand_topology=expand_network), use_container_width=True, key="topo_persist")
-    gantt_placeholder.plotly_chart(draw_gantt_chart(), use_container_width=True, key="gantt_persist")
+    topo_placeholder.plotly_chart(create_network_topology(expand_topology=expand_network), width="stretch", key="topo_persist")
+    gantt_placeholder.plotly_chart(draw_gantt_chart(), width="stretch", key="gantt_persist")
 
     # Restore metrics
     payloads = st.session_state.backend_results.get('payloads', [1000])
@@ -1009,11 +1012,11 @@ if not st.session_state.is_running and st.session_state.demo_phase == 6:
         tab1, tab2 = st.tabs(["📊 Scenario A: Performance (IEEE 802.1Qbv)", "🛡️ Scenario B: Security (Cyber Attack)"])
 
         with tab1:
-            st.plotly_chart(draw_latency_chart(payloads, p7_latencies, p0_latencies, expected_latency), use_container_width=True, key="chart_persist_tab1")
+            st.plotly_chart(draw_latency_chart(payloads, p7_latencies, p0_latencies, expected_latency), width="stretch", key="chart_persist_tab1")
 
         with tab2:
             st.info("System Secure. Awaiting Trigger.")
-            st.plotly_chart(draw_latency_chart(payloads, p7_latencies, p0_latencies, expected_latency), use_container_width=True, key="chart_persist_tab2")
+            st.plotly_chart(draw_latency_chart(payloads, p7_latencies, p0_latencies, expected_latency), width="stretch", key="chart_persist_tab2")
 
     log_placeholder.markdown(write_terminal_log(st.session_state.final_logs), unsafe_allow_html=True)
     status_text.success("Presentation Complete! The SD-TSN perfectly maintained critical operations despite 100KB+ interference.")

@@ -168,7 +168,13 @@ class GCLGenerator:
         # Pretty print XML
         xml_str = ET.tostring(root, encoding='utf-8')
         parsed_xml = minidom.parseString(xml_str)
-        return parsed_xml.toprettyxml(indent="  ")
+        pretty_xml = parsed_xml.toprettyxml(indent="  ")
+
+        # Explicitly write the generated XML to the artifact file
+        with open("network_config.xml", "w") as f:
+            f.write(pretty_xml)
+
+        return pretty_xml
 
 if __name__ == "__main__":
     from models import Topology
