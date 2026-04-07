@@ -955,7 +955,8 @@ if not st.session_state.is_running and st.session_state.demo_phase == 4:
     f2_metric.markdown(f"<div class='metric-card'><strong>Flow 2 (Priority 0) Payload</strong><br><span style='font-size:24px; color:#faca2b;'>{final_payload:,} Bytes</span><br><small style='color:#faca2b;'>{final_p0_latency:.2f} µs Latency (+{(final_payload - payloads[-2]) if len(payloads)>1 else 0} B)</small></div>", unsafe_allow_html=True)
 
     # Re-render HTML buffers with unsafe_allow_html=True
-    queue_buffer_placeholder.markdown(draw_queue_buffers(q0_fill=100, q7_fill=0, gate0_open=True, gate7_open=False), unsafe_allow_html=True)
+    queue_html = draw_queue_buffers(q0_fill=100, q7_fill=0, gate0_open=True, gate7_open=False)
+    st.markdown(queue_html, unsafe_allow_html=True)
 
     with chart_placeholder.container():
         # Live XML Expander
