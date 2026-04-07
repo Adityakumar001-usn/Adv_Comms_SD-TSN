@@ -590,29 +590,30 @@ def draw_queue_buffers(q0_fill, q7_fill, gate0_open, gate7_open):
     g7_text = "OPEN" if gate7_open else "CLOSED"
 
     html = f"""
-    <div style="background-color: #111827; padding: 15px; border-radius: 8px; border: 1px solid #1f2937;">
-        <h5 style="color: white; margin-bottom: 10px;">Switch Egress Port: Live Queue State</h5>
+<div style="background-color: #111827; padding: 15px; border-radius: 8px; border: 1px solid #1f2937;">
+    <h5 style="color: white; margin-bottom: 10px;">Switch Egress Port: Live Queue State</h5>
 
-        <!-- Queue 7 -->
-        <div style="display: flex; align-items: center; margin-bottom: 15px;">
-            <div style="width: 100px; color: #ff4b4b; font-weight: bold;">Queue 7 (P7)</div>
-            <div style="flex-grow: 1; background-color: #374151; height: 20px; border-radius: 10px; margin: 0 10px; overflow: hidden; border: 1px solid #555;">
-                <div style="width: {q7_fill}%; background-color: #ff4b4b; height: 100%; transition: width 0.3s ease;"></div>
-            </div>
-            <div style="width: 80px; text-align: center; color: {g7_color}; font-weight: bold; border: 1px solid {g7_color}; padding: 2px; border-radius: 4px;">Gate: {g7_text}</div>
+    <!-- Queue 7 -->
+    <div style="display: flex; align-items: center; margin-bottom: 15px;">
+        <div style="width: 100px; color: #ff4b4b; font-weight: bold;">Queue 7 (P7)</div>
+        <div style="flex-grow: 1; background-color: #374151; height: 20px; border-radius: 10px; margin: 0 10px; overflow: hidden; border: 1px solid #555;">
+            <div style="width: {q7_fill}%; background-color: #ff4b4b; height: 100%; transition: width 0.3s ease;"></div>
         </div>
-
-        <!-- Queue 0 -->
-        <div style="display: flex; align-items: center;">
-            <div style="width: 100px; color: #faca2b; font-weight: bold;">Queue 0 (P0)</div>
-            <div style="flex-grow: 1; background-color: #374151; height: 20px; border-radius: 10px; margin: 0 10px; overflow: hidden; border: 1px solid #555;">
-                <div style="width: {q0_fill}%; background-color: #faca2b; height: 100%; transition: width 0.3s ease;"></div>
-            </div>
-            <div style="width: 80px; text-align: center; color: {g0_color}; font-weight: bold; border: 1px solid {g0_color}; padding: 2px; border-radius: 4px;">Gate: {g0_text}</div>
-        </div>
+        <div style="width: 80px; text-align: center; color: {g7_color}; font-weight: bold; border: 1px solid {g7_color}; padding: 2px; border-radius: 4px;">Gate: {g7_text}</div>
     </div>
-    """
-    return html
+
+    <!-- Queue 0 -->
+    <div style="display: flex; align-items: center;">
+        <div style="width: 100px; color: #faca2b; font-weight: bold;">Queue 0 (P0)</div>
+        <div style="flex-grow: 1; background-color: #374151; height: 20px; border-radius: 10px; margin: 0 10px; overflow: hidden; border: 1px solid #555;">
+            <div style="width: {q0_fill}%; background-color: #faca2b; height: 100%; transition: width 0.3s ease;"></div>
+        </div>
+        <div style="width: 80px; text-align: center; color: {g0_color}; font-weight: bold; border: 1px solid {g0_color}; padding: 2px; border-radius: 4px;">Gate: {g0_text}</div>
+    </div>
+</div>
+"""
+    import textwrap
+    return textwrap.dedent(html).strip()
 
 
 def write_terminal_log(logs):
@@ -712,7 +713,7 @@ if st.session_state.is_running and st.session_state.demo_phase == 0:
         current_logs += "[SimPy] Initializing Discrete-Event Physics Engine...\n"
         log_placeholder.markdown(write_terminal_log(current_logs), unsafe_allow_html=True)
         gantt_placeholder.plotly_chart(draw_gantt_chart(), use_container_width=True, key="phase3_gantt")
-        queue_buffer_placeholder.markdown(draw_queue_buffers(q0_fill=0, q7_fill=0, gate0_open=True, gate7_open=False), unsafe_allow_html=True)
+        queue_buffer_placeholder.html(draw_queue_buffers(q0_fill=0, q7_fill=0, gate0_open=True, gate7_open=False))
 
         current_logs += "[CNC] Deployed Gate Control Lists successfully to SW1, SW2, SW3, SW4.\n"
         current_logs += "[SimPy] Clock Initialized at 0.00 µs.\n"
@@ -778,7 +779,7 @@ if st.session_state.demo_phase == 4 and not st.session_state.is_running:
                 sim_time_ms = (idx + 1) * 40  # Just a visual multiplier for the clock
                 simpy_clock.metric("Virtual Time Passed", f"{sim_time_ms} ms")
                 q0_percent = min(100, int((p / interference_max_payload) * 100))
-                queue_buffer_placeholder.markdown(draw_queue_buffers(q0_fill=q0_percent, q7_fill=0, gate0_open=True, gate7_open=False), unsafe_allow_html=True)
+                queue_buffer_placeholder.html(draw_queue_buffers(q0_fill=q0_percent, q7_fill=0, gate0_open=True, gate7_open=False))
                 time.sleep(0.3)
 
             final_p7 = p7_lats[-1]
@@ -816,7 +817,7 @@ if st.session_state.demo_phase == 4 and not st.session_state.is_running:
                     simpy_clock_attack.metric("Virtual Time Passed", f"{sim_time_ms} ms")
                     q0_percent = min(100, int((p / interference_max_payload) * 100))
                     # Show P7 queue slightly filling but dropping, maybe just flash red
-                    queue_buffer_placeholder.markdown(draw_queue_buffers(q0_fill=q0_percent, q7_fill=0, gate0_open=True, gate7_open=False), unsafe_allow_html=True)
+                    queue_buffer_placeholder.html(draw_queue_buffers(q0_fill=q0_percent, q7_fill=0, gate0_open=True, gate7_open=False))
                     time.sleep(0.3)
 
                 col_sec1, col_sec2 = st.columns(2)
@@ -921,7 +922,7 @@ if st.session_state.demo_phase == 5:
 
     # Update chart and buffer dynamically
     gantt_placeholder.plotly_chart(draw_gantt_chart(current_time=t), use_container_width=True, key="gantt_p5")
-    queue_buffer_placeholder.markdown(draw_queue_buffers(q0_fill=q0_fill, q7_fill=q7_fill, gate0_open=gate0_open, gate7_open=gate7_open), unsafe_allow_html=True)
+    queue_buffer_placeholder.html(draw_queue_buffers(q0_fill=q0_fill, q7_fill=q7_fill, gate0_open=gate0_open, gate7_open=gate7_open))
 
     log_msg = st.session_state.final_logs + f"\n[Clock] Current Time: {t:.2f} µs | P0 Gate: {'OPEN' if gate0_open else 'CLOSED'} | P7 Gate: {'OPEN' if gate7_open else 'CLOSED'}"
     log_placeholder.markdown(write_terminal_log(log_msg), unsafe_allow_html=True)
@@ -954,9 +955,10 @@ if not st.session_state.is_running and st.session_state.demo_phase == 4:
     f1_metric.markdown(f"<div class='metric-card glow-text'><strong>Flow 1 (Priority 7) Latency</strong><br><span style='font-size:24px;'>{final_f1_latency:.2f} µs</span><br><small style='color:lightgreen;'>{jitter:.2f} µs Jitter</small></div>", unsafe_allow_html=True)
     f2_metric.markdown(f"<div class='metric-card'><strong>Flow 2 (Priority 0) Payload</strong><br><span style='font-size:24px; color:#faca2b;'>{final_payload:,} Bytes</span><br><small style='color:#faca2b;'>{final_p0_latency:.2f} µs Latency (+{(final_payload - payloads[-2]) if len(payloads)>1 else 0} B)</small></div>", unsafe_allow_html=True)
 
-    # Re-render HTML buffers with unsafe_allow_html=True
-    queue_html = draw_queue_buffers(q0_fill=100, q7_fill=0, gate0_open=True, gate7_open=False)
-    st.markdown(queue_html, unsafe_allow_html=True)
+    with col_bottom2:
+        # Re-render HTML buffers with st.html to avoid Markdown indentation trap
+        queue_html = draw_queue_buffers(q0_fill=100, q7_fill=0, gate0_open=True, gate7_open=False)
+        st.html(queue_html)
 
     with chart_placeholder.container():
         # Live XML Expander
