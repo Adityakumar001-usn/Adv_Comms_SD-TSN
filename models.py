@@ -37,7 +37,9 @@ class Topology:
     Constructs the physical network architecture using a NetworkX directed graph.
     All physical links are modeled as full-duplex 100 Mbps automotive Ethernet connections.
     """
-    def __init__(self):
+    def __init__(self, expand_topology: bool = False, link_speed_mbps: int = 100):
+        self.expand_topology = expand_topology
+        self.link_speed_mbps = link_speed_mbps
         self.graph = nx.DiGraph()
         self.build_topology()
 
@@ -49,6 +51,10 @@ class Topology:
         # Add nodes
         endpoints = ['E1', 'E2', 'E3']
         switches = ['SW1', 'SW2', 'SW3', 'SW4']
+
+        if self.expand_topology:
+            endpoints.append('E4')
+            switches.append('SW5')
         gateway = 'GW'
         pc = 'PC'
 
@@ -73,10 +79,14 @@ class Topology:
         self.add_bidirectional_link('GW', 'PC')
 
         # Switches form a ring around gateway: SW1 connects to SW2 and SW3; SW4 connects to SW2 and SW3
-        self.add_bidirectional_link('SW1', 'SW2')
-        self.add_bidirectional_link('SW1', 'SW3')
-        self.add_bidirectional_link('SW4', 'SW2')
-        self.add_bidirectional_link('SW4', 'SW3')
+        self.add_bidirectional_link('SW1', 'SW2', self.link_speed_mbps)
+        self.add_bidirectional_link('SW1', 'SW3', self.link_speed_mbps)
+        self.add_bidirectional_link('SW4', 'SW2', self.link_speed_mbps)
+        self.add_bidirectional_link('SW4', 'SW3', self.link_speed_mbps)
+
+        if self.expand_topology:
+            self.add_bidirectional_link('SW4', 'SW5', self.link_speed_mbps)
+            self.add_bidirectional_link('SW5', 'E4', self.link_speed_mbps)
 
     def get_shortest_path(self, source: str, destination: str) -> list[str]:
         return nx.shortest_path(self.graph, source=source, target=destination)

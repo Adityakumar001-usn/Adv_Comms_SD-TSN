@@ -15,16 +15,19 @@ class ILPScheduler:
     """
     Formulates and solves the scheduling constraints for IEEE 802.1Qbv switches.
     """
-    def __init__(self, topology: Topology, routing: Dict[str, List[str]]):
+    def __init__(self, topology: Topology, routing: Dict[str, List[str]], link_speed_mbps: int = 100):
         self.topology = topology
         self.routing = routing
 
         # Constants
-        self.LINK_SPEED_MBPS = 100
+        self.link_speed_mbps = link_speed_mbps
         self.d_proc = 2.0  # microseconds
-        self.guard_band = 121.76  # microseconds
         self.compensation = 1.0  # microseconds
         self.MTU = 1522  # Bytes
+
+        # Dynamically calculated Guard Band
+        # Ensure Priority 7 is safe from a full Priority 0 MTU frame on the wire
+        self.guard_band = (self.MTU * 8) / self.link_speed_mbps  # microseconds
 
     def transmission_duration(self, payload_bytes: int) -> float:
         """Calculate transmission duration in microseconds for a given payload + framing."""
@@ -33,7 +36,7 @@ class ILPScheduler:
         # Flow 1 is 1024 Bytes payload. The problem states Flow 1 has 1024 Bytes payload.
         # Total bits = (payload_bytes + 38) * 8
         total_bits = (payload_bytes + 38) * 8
-        speed_bps = self.LINK_SPEED_MBPS * 1_000_000
+        speed_bps = self.link_speed_mbps * 1_000_000
         # Time in seconds = total_bits / speed_bps
         # Time in microseconds = (total_bits / speed_bps) * 1_000_000
         duration_us = (total_bits / speed_bps) * 1_000_000

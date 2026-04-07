@@ -116,7 +116,7 @@ def run_simulation_tests():
                 flows.append(Flow("RogueFlow", "MockAttacker", "E3", 1000, 7, 1500, 0))
 
             # Initialize Simulator
-            sim = TSNSimulator(test_topo, test_routing, gcl_config, hyper_period, tas_enabled=tas_enabled, attack_active=attack_active)
+            sim = TSNSimulator(test_topo, test_routing, gcl_config, hyper_period, tas_enabled=tas_enabled, attack_active=attack_active, link_speed_mbps=100)
             for flow in flows:
                 sim.start_flow(flow)
 
@@ -152,7 +152,10 @@ def run_simulation_tests():
                 "flow2_payload_bytes": payload,
                 "flow1_avg_latency_us": f1_avg,
                 "jitter_us": jitter,
-                "dropped_packets": getattr(sim, 'dropped_spoofed_packets', 0)
+                "dropped_packets": getattr(sim, 'dropped_spoofed_packets', 0),
+                "link_speed_mbps": 100,
+                "topology_expanded": False,
+                "simulation_window_ms": 5000
             })
             time.sleep(0.5)
 

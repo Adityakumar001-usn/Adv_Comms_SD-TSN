@@ -4,125 +4,179 @@
         "flow2_payload_bytes": 3200,
         "flow1_avg_latency_us": 260.87999999990313,
         "jitter_us": -84.96000000009684,
-        "dropped_packets": 0
+        "dropped_packets": 0,
+        "link_speed_mbps": 100,
+        "topology_expanded": false,
+        "simulation_window_ms": 5000
     },
     {
         "scenario": "Scenario A1: Strict Priority Only (TAS Disabled)",
         "flow2_payload_bytes": 6400,
         "flow1_avg_latency_us": 260.87999999990313,
         "jitter_us": -84.96000000009684,
-        "dropped_packets": 0
+        "dropped_packets": 0,
+        "link_speed_mbps": 100,
+        "topology_expanded": false,
+        "simulation_window_ms": 5000
     },
     {
         "scenario": "Scenario A1: Strict Priority Only (TAS Disabled)",
         "flow2_payload_bytes": 12800,
         "flow1_avg_latency_us": 260.87999999990313,
         "jitter_us": -84.96000000009684,
-        "dropped_packets": 0
+        "dropped_packets": 0,
+        "link_speed_mbps": 100,
+        "topology_expanded": false,
+        "simulation_window_ms": 5000
     },
     {
         "scenario": "Scenario A1: Strict Priority Only (TAS Disabled)",
         "flow2_payload_bytes": 25600,
         "flow1_avg_latency_us": 260.87999999990313,
         "jitter_us": -84.96000000009684,
-        "dropped_packets": 0
+        "dropped_packets": 0,
+        "link_speed_mbps": 100,
+        "topology_expanded": false,
+        "simulation_window_ms": 5000
     },
     {
         "scenario": "Scenario A1: Strict Priority Only (TAS Disabled)",
         "flow2_payload_bytes": 51200,
         "flow1_avg_latency_us": 340.55520000271287,
         "jitter_us": -5.284799997287109,
-        "dropped_packets": 0
+        "dropped_packets": 0,
+        "link_speed_mbps": 100,
+        "topology_expanded": false,
+        "simulation_window_ms": 5000
     },
     {
         "scenario": "Scenario A1: Strict Priority Only (TAS Disabled)",
         "flow2_payload_bytes": 102400,
         "flow1_avg_latency_us": 338.81280000532774,
         "jitter_us": -7.02719999467223,
-        "dropped_packets": 0
+        "dropped_packets": 0,
+        "link_speed_mbps": 100,
+        "topology_expanded": false,
+        "simulation_window_ms": 5000
     },
     {
         "scenario": "Scenario A2: SD-TSN Enabled (TAS Active)",
         "flow2_payload_bytes": 3200,
         "flow1_avg_latency_us": 345.8399999998833,
         "jitter_us": -1.1669953892123885e-10,
-        "dropped_packets": 0
+        "dropped_packets": 0,
+        "link_speed_mbps": 100,
+        "topology_expanded": false,
+        "simulation_window_ms": 5000
     },
     {
         "scenario": "Scenario A2: SD-TSN Enabled (TAS Active)",
         "flow2_payload_bytes": 6400,
         "flow1_avg_latency_us": 345.8399999998833,
         "jitter_us": -1.1669953892123885e-10,
-        "dropped_packets": 0
+        "dropped_packets": 0,
+        "link_speed_mbps": 100,
+        "topology_expanded": false,
+        "simulation_window_ms": 5000
     },
     {
         "scenario": "Scenario A2: SD-TSN Enabled (TAS Active)",
         "flow2_payload_bytes": 12800,
         "flow1_avg_latency_us": 345.8399999998833,
         "jitter_us": -1.1669953892123885e-10,
-        "dropped_packets": 0
+        "dropped_packets": 0,
+        "link_speed_mbps": 100,
+        "topology_expanded": false,
+        "simulation_window_ms": 5000
     },
     {
         "scenario": "Scenario A2: SD-TSN Enabled (TAS Active)",
         "flow2_payload_bytes": 25600,
         "flow1_avg_latency_us": 345.8399999998833,
         "jitter_us": -1.1669953892123885e-10,
-        "dropped_packets": 0
+        "dropped_packets": 0,
+        "link_speed_mbps": 100,
+        "topology_expanded": false,
+        "simulation_window_ms": 5000
     },
     {
         "scenario": "Scenario A2: SD-TSN Enabled (TAS Active)",
         "flow2_payload_bytes": 51200,
         "flow1_avg_latency_us": 345.8399999998833,
         "jitter_us": -1.1669953892123885e-10,
-        "dropped_packets": 0
+        "dropped_packets": 0,
+        "link_speed_mbps": 100,
+        "topology_expanded": false,
+        "simulation_window_ms": 5000
     },
     {
         "scenario": "Scenario A2: SD-TSN Enabled (TAS Active)",
         "flow2_payload_bytes": 102400,
         "flow1_avg_latency_us": 345.8399999998833,
         "jitter_us": -1.1669953892123885e-10,
-        "dropped_packets": 0
+        "dropped_packets": 0,
+        "link_speed_mbps": 100,
+        "topology_expanded": false,
+        "simulation_window_ms": 5000
     },
     {
         "scenario": "Scenario B: Cyber Attack (Rogue Node spoofing Prio 7)",
         "flow2_payload_bytes": 3200,
         "flow1_avg_latency_us": 345.8399999998833,
         "jitter_us": -1.1669953892123885e-10,
-        "dropped_packets": 5000
+        "dropped_packets": 5000,
+        "link_speed_mbps": 100,
+        "topology_expanded": false,
+        "simulation_window_ms": 5000
     },
     {
         "scenario": "Scenario B: Cyber Attack (Rogue Node spoofing Prio 7)",
         "flow2_payload_bytes": 6400,
         "flow1_avg_latency_us": 345.8399999998833,
         "jitter_us": -1.1669953892123885e-10,
-        "dropped_packets": 5000
+        "dropped_packets": 5000,
+        "link_speed_mbps": 100,
+        "topology_expanded": false,
+        "simulation_window_ms": 5000
     },
     {
         "scenario": "Scenario B: Cyber Attack (Rogue Node spoofing Prio 7)",
         "flow2_payload_bytes": 12800,
         "flow1_avg_latency_us": 345.8399999998833,
         "jitter_us": -1.1669953892123885e-10,
-        "dropped_packets": 5000
+        "dropped_packets": 5000,
+        "link_speed_mbps": 100,
+        "topology_expanded": false,
+        "simulation_window_ms": 5000
     },
     {
         "scenario": "Scenario B: Cyber Attack (Rogue Node spoofing Prio 7)",
         "flow2_payload_bytes": 25600,
         "flow1_avg_latency_us": 345.8399999998833,
         "jitter_us": -1.1669953892123885e-10,
-        "dropped_packets": 5000
+        "dropped_packets": 5000,
+        "link_speed_mbps": 100,
+        "topology_expanded": false,
+        "simulation_window_ms": 5000
     },
     {
         "scenario": "Scenario B: Cyber Attack (Rogue Node spoofing Prio 7)",
         "flow2_payload_bytes": 51200,
         "flow1_avg_latency_us": 345.8399999998833,
         "jitter_us": -1.1669953892123885e-10,
-        "dropped_packets": 5000
+        "dropped_packets": 5000,
+        "link_speed_mbps": 100,
+        "topology_expanded": false,
+        "simulation_window_ms": 5000
     },
     {
         "scenario": "Scenario B: Cyber Attack (Rogue Node spoofing Prio 7)",
         "flow2_payload_bytes": 102400,
         "flow1_avg_latency_us": 345.8399999998833,
         "jitter_us": -1.1669953892123885e-10,
-        "dropped_packets": 5000
+        "dropped_packets": 5000,
+        "link_speed_mbps": 100,
+        "topology_expanded": false,
+        "simulation_window_ms": 5000
     }
 ]

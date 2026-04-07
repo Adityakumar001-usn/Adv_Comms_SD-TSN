@@ -269,7 +269,7 @@ class Switch:
             port_events = gcl_config.get(name, {}).get(port_id, [])
             cycle_time = simulator.hyper_period
 
-            sp = SwitchPort(env, name, port_id, port_events, cycle_time, tas_enabled=simulator.tas_enabled)
+            sp = SwitchPort(env, name, port_id, port_events, cycle_time, speed_mbps=simulator.link_speed_mbps, tas_enabled=simulator.tas_enabled)
             sp.parent_switch = self
             self.ports[port_id] = sp
 
@@ -307,7 +307,7 @@ class Switch:
         self.simulator.send_packet(packet, self.name)
 
 class TSNSimulator:
-    def __init__(self, topology: Topology, routing, gcl_config: Dict, hyper_period: int, tas_enabled: bool = True, attack_active: bool = False):
+    def __init__(self, topology: Topology, routing, gcl_config: Dict, hyper_period: int, tas_enabled: bool = True, attack_active: bool = False, link_speed_mbps: int = 100):
         self.env = simpy.Environment()
         self.topology = topology
         self.routing = routing
@@ -315,6 +315,7 @@ class TSNSimulator:
         self.hyper_period = hyper_period
         self.tas_enabled = tas_enabled
         self.attack_active = attack_active
+        self.link_speed_mbps = link_speed_mbps
 
         self.dropped_spoofed_packets = 0
 
@@ -351,7 +352,7 @@ class TSNSimulator:
 
         # Transmit over the physical link
         total_bits = (packet.size + 38) * 8
-        duration_us = (total_bits / (100 * 1_000_000)) * 1_000_000
+        duration_us = (total_bits / (self.link_speed_mbps * 1_000_000)) * 1_000_000
 
         # In a more granular sim we'd represent the physical link as a resource
         # but the egress queue's transmitter resource already serializes egress.

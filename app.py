@@ -99,14 +99,17 @@ if 'backend_results' not in st.session_state:
     st.session_state.backend_results = {}
 
 st.sidebar.title("Simulation Settings")
+expand_network = st.sidebar.checkbox("Expand Network (Add SW5 & E4)", value=False)
+link_speed = st.sidebar.selectbox("Physical Link Speed", [100, 1000], index=0, format_func=lambda x: f"{x} Mbps")
 critical_payload_size = st.sidebar.slider("Critical Payload Size (Bytes)", min_value=128, max_value=1500, value=1024, step=128, help="Size of the Mission-Critical Prio 7 Flow")
 interference_max_payload = st.sidebar.slider("Interference Payload Max (Bytes)", min_value=1000, max_value=150000, value=102400, step=1000, help="Maximum background traffic injected in Phase 4")
+attack_duration_ms = st.sidebar.slider("Simulation Window (ms)", 100, 1000, 200, step=100, help="Duration of the Live Stress-Test Simulation")
 st.session_state.slow_mo = st.sidebar.toggle("Enable Microsecond Slow-Mo", value=st.session_state.slow_mo, help="Pause at the maximum payload and manually step through the TAS scheduling.")
 
 @st.cache_data(show_spinner=False)
-def calculate_ilp_schedule(f1_payload):
+def calculate_ilp_schedule(f1_payload, expand_topology, link_speed_mbps):
     """Cached wrapper to run the PuLP ILP solver so it doesn't re-run on every UI update."""
-    topo = Topology()
+    topo = Topology(expand_topology=expand_topology, link_speed_mbps=link_speed_mbps)
     cuc = MockCUC()
     base_flows = cuc.generate_test_flows()
 
@@ -118,7 +121,7 @@ def calculate_ilp_schedule(f1_payload):
     routing = CNCRouting(topo)
     routes = routing.compute_routes(base_flows)
 
-    scheduler = ILPScheduler(topo, routes)
+    scheduler = ILPScheduler(topo, routes, link_speed_mbps=link_speed_mbps)
     flow1 = next(f for f in base_flows if f.flow_id == "Flow1")
 
     schedule = scheduler.schedule_flow(flow1)
@@ -154,9 +157,9 @@ def calculate_ilp_schedule(f1_payload):
     }
 
 @st.cache_data(show_spinner=False)
-def run_cached_sim_iterations(f1_payload, f2_max, gcl_config, hyper_period, tas_enabled=True, attack_active=False):
+def run_cached_sim_iterations(f1_payload, f2_max, gcl_config, hyper_period, tas_enabled=True, attack_active=False, expand_topology=False, link_speed_mbps=100, sim_duration_ms=200):
     """Wrapper to run the full simulation stress-test loop."""
-    topo = Topology()
+    topo = Topology(expand_topology=expand_topology, link_speed_mbps=link_speed_mbps)
     if attack_active:
         # Add rogue node to topology just for the simulation routes
         topo.graph.add_node('MockAttacker', type='endpoint')
@@ -190,14 +193,15 @@ def run_cached_sim_iterations(f1_payload, f2_max, gcl_config, hyper_period, tas_
             flows.append(rogue_flow)
 
         routing = CNCRouting(topo)
-        sim = TSNSimulator(topo, routing, gcl_config, hyper_period, tas_enabled=tas_enabled, attack_active=attack_active)
+        sim = TSNSimulator(topo, routing, gcl_config, hyper_period, tas_enabled=tas_enabled, attack_active=attack_active, link_speed_mbps=link_speed_mbps)
 
         for flow in flows:
             sim.start_flow(flow)
 
         print(f"[BACKEND LOG] Running TSNSimulator for payload size: {payload} Bytes...")
 
-        sim.run(200000) # Run for 200ms
+        sim_duration_us = sim_duration_ms * 1000
+        sim.run(sim_duration_us)
 
         f1_latencies = sim.latencies.get("Flow1", [])
         f2_latencies = sim.latencies.get("Flow2", [])
@@ -258,19 +262,23 @@ def draw_empty_chart(title, x_title, y_title):
     fig.add_trace(go.Scatter(x=[0, 1], y=[0, 1], mode='lines', line=dict(color='rgba(0,0,0,0)'), hoverinfo='none'))
     return fig
 
-def create_network_topology(attack_active=False, stage="full", flow1_hops=None, flow2_hops=None):
+def create_network_topology(attack_active=False, stage="full", flow1_hops=None, flow2_hops=None, expand_topology=False):
     # Constructing a simple representation of our Zonal Architecture
     # E1 -> SW1 -> SW3 -> GW -> E3
     # E2 -> SW2 -> SW4 -> GW -> E3
 
     nodes = ['E1', 'E2', 'SW1', 'SW2', 'SW3', 'SW4', 'GW', 'E3']
-    if attack_active:
-        nodes.append('MockAttacker')
-
     edges = [
         ('E1', 'SW1'), ('SW1', 'SW3'), ('SW3', 'GW'), ('GW', 'E3'),
         ('E2', 'SW2'), ('SW2', 'SW4'), ('SW4', 'GW')
     ]
+
+    if attack_active:
+        nodes.append('MockAttacker')
+
+    if expand_topology:
+        nodes.extend(['SW5', 'E4'])
+        edges.extend([('SW4', 'SW5'), ('SW5', 'E4')])
 
     # We define fixed positions to make it look like a clean zonal architecture diagram
     pos = {
@@ -282,6 +290,8 @@ def create_network_topology(attack_active=False, stage="full", flow1_hops=None, 
         'SW4': (2, 0),
         'GW': (3, 1),
         'E3': (4, 1),
+        'SW5': (2, -1),
+        'E4': (1, -1),
         'MockAttacker': (0, 3)
     }
 
@@ -429,7 +439,7 @@ with col1:
     if st.session_state.demo_phase == 0 and not st.session_state.is_running:
         topo_placeholder.markdown("<div class='placeholder-box'><h4>Zonal Topology</h4><p>Awaiting Phase 1: Discovery...</p></div>", unsafe_allow_html=True)
     elif st.session_state.demo_phase >= 1:
-        topo_placeholder.plotly_chart(create_network_topology(), use_container_width=True, key="init_topo")
+        topo_placeholder.plotly_chart(create_network_topology(expand_topology=expand_network), use_container_width=True, key="init_topo")
 
 with col2:
     st.markdown("### Demo Controls")
@@ -649,27 +659,27 @@ if st.session_state.is_running and st.session_state.demo_phase == 0:
         status_text.info("Phase 1: Building Digital Twin - Physical Layer & Links")
 
         # Nodes
-        topo_placeholder.plotly_chart(create_network_topology(stage="nodes"), use_container_width=True, key="p1_nodes")
+        topo_placeholder.plotly_chart(create_network_topology(stage="nodes", expand_topology=expand_network), use_container_width=True, key="p1_nodes")
         time.sleep(1.0)
 
         # Links
-        current_logs += "[Digital Twin] Layer 1: Establishing 100Mbps Ethernet Links...\n"
+        current_logs += f"[Digital Twin] Layer 1: Establishing {link_speed}Mbps Ethernet Links...\n"
         log_placeholder.markdown(write_terminal_log(current_logs), unsafe_allow_html=True)
-        topo_placeholder.plotly_chart(create_network_topology(stage="links"), use_container_width=True, key="p1_links")
+        topo_placeholder.plotly_chart(create_network_topology(stage="links", expand_topology=expand_network), use_container_width=True, key="p1_links")
         time.sleep(1.0)
 
         # Routing Flow 1
         current_logs += f"[CUC] Provisioning Flow 1: Mission-Critical (Prio 7), Payload: {critical_payload_size} Bytes.\n"
         log_placeholder.markdown(write_terminal_log(current_logs), unsafe_allow_html=True)
         for hops in range(1, 5): # 4 edges
-            topo_placeholder.plotly_chart(create_network_topology(stage="flow1_routing", flow1_hops=hops), use_container_width=True, key=f"p1_f1_{hops}")
+            topo_placeholder.plotly_chart(create_network_topology(stage="flow1_routing", flow1_hops=hops, expand_topology=expand_network), use_container_width=True, key=f"p1_f1_{hops}")
             time.sleep(0.5)
 
         # Routing Flow 2
         current_logs += f"[CUC] Provisioning Flow 2: Best-Effort Interference (Prio 0), Max Payload: {interference_max_payload} Bytes.\n"
         log_placeholder.markdown(write_terminal_log(current_logs), unsafe_allow_html=True)
         for hops in range(1, 5): # 4 edges
-            topo_placeholder.plotly_chart(create_network_topology(stage="flow2_routing", flow1_hops=4, flow2_hops=hops), use_container_width=True, key=f"p1_f2_{hops}")
+            topo_placeholder.plotly_chart(create_network_topology(stage="flow2_routing", flow1_hops=4, flow2_hops=hops, expand_topology=expand_network), use_container_width=True, key=f"p1_f2_{hops}")
             time.sleep(0.5)
 
         # Phase 1 -> 2: Optimization (ILP Deep-Dive)
@@ -681,7 +691,7 @@ if st.session_state.is_running and st.session_state.demo_phase == 0:
         log_placeholder.markdown(write_terminal_log(current_logs), unsafe_allow_html=True)
 
         # Trigger actual backend calculation
-        ilp_results = calculate_ilp_schedule(critical_payload_size)
+        ilp_results = calculate_ilp_schedule(critical_payload_size, expand_network, link_speed)
         st.session_state.backend_results = ilp_results
 
         guard_band_val = ilp_results['guard_band']
@@ -696,7 +706,7 @@ if st.session_state.is_running and st.session_state.demo_phase == 0:
                 st.write("✔️ Buffer Collisions Prevented")
 
                 time.sleep(1.0)
-                st.write("Calculating 100Mbps MTU Guard Band...")
+                st.write(f"Calculating {link_speed}Mbps MTU Guard Band...")
                 current_logs += f"[PuLP] Calculating required Guard Band... Solved: {guard_band_val:.2f} µs.\n"
                 log_placeholder.markdown(write_terminal_log(current_logs), unsafe_allow_html=True)
                 st.write(f"✔️ Guard Band Size: {guard_band_val:.2f} µs")
@@ -745,7 +755,7 @@ if st.session_state.demo_phase == 4 and not st.session_state.is_running:
     log_placeholder.markdown(write_terminal_log(st.session_state.final_logs), unsafe_allow_html=True)
 
     # Restore persistent UI elements from previous phases
-    topo_placeholder.plotly_chart(create_network_topology(), use_container_width=True, key="p4_topo")
+    topo_placeholder.plotly_chart(create_network_topology(expand_topology=expand_network), use_container_width=True, key="p4_topo")
 
     expected_latency = st.session_state.backend_results.get('expected_latency', 0.0)
     gcl_config = st.session_state.backend_results.get('gcl_config', {})
@@ -786,7 +796,7 @@ if st.session_state.demo_phase == 4 and not st.session_state.is_running:
             simpy_clock = st.empty()
 
             # Animate the queues filling up proportionally to the payloads being tested
-            payloads, p7_lats, p0_lats, _ = run_cached_sim_iterations(critical_payload_size, interference_max_payload, gcl_config, hyper_period, tas_enabled=tas_enabled, attack_active=False)
+            payloads, p7_lats, p0_lats, _ = run_cached_sim_iterations(critical_payload_size, interference_max_payload, gcl_config, hyper_period, tas_enabled=tas_enabled, attack_active=False, expand_topology=expand_network, link_speed_mbps=link_speed, sim_duration_ms=attack_duration_ms)
 
             for idx, p in enumerate(payloads):
                 sim_time_ms = (idx + 1) * 40  # Just a visual multiplier for the clock
@@ -817,13 +827,13 @@ if st.session_state.demo_phase == 4 and not st.session_state.is_running:
             if attack_btn:
                 st.error("⚠️ CRITICAL: UNAUTHORIZED PRIORITY 7 INGRESS DETECTED AT SW1")
                 with topo_placeholder.container():
-                    st.plotly_chart(create_network_topology(attack_active=True), use_container_width=True, key="tab2_topo_attack")
+                    st.plotly_chart(create_network_topology(attack_active=True, expand_topology=expand_network), use_container_width=True, key="tab2_topo_attack")
 
                 # Metric for SimPy Clock
                 st.markdown("### ⏱️ SimPy Discrete-Event Clock")
                 simpy_clock_attack = st.empty()
 
-                payloads, p7_lats, p0_lats, dropped = run_cached_sim_iterations(critical_payload_size, interference_max_payload, gcl_config, hyper_period, tas_enabled=True, attack_active=True)
+                payloads, p7_lats, p0_lats, dropped = run_cached_sim_iterations(critical_payload_size, interference_max_payload, gcl_config, hyper_period, tas_enabled=True, attack_active=True, expand_topology=expand_network, link_speed_mbps=link_speed, sim_duration_ms=attack_duration_ms)
 
                 for idx, p in enumerate(payloads):
                     sim_time_ms = (idx + 1) * 40
@@ -932,7 +942,7 @@ if st.session_state.demo_phase == 5:
             st.session_state.demo_phase = 4 # Revert to finished state
             st.rerun()
 
-    topo_placeholder.plotly_chart(create_network_topology(), use_container_width=True, key="topo_p5")
+    topo_placeholder.plotly_chart(create_network_topology(expand_topology=expand_network), use_container_width=True, key="topo_p5")
 
     # Update chart and buffer dynamically
     gantt_placeholder.plotly_chart(draw_gantt_chart(current_time=t), use_container_width=True, key="gantt_p5")
@@ -951,7 +961,7 @@ if st.session_state.demo_phase == 5:
 
 # Persist visual elements if phase completes
 if not st.session_state.is_running and st.session_state.demo_phase == 6:
-    topo_placeholder.plotly_chart(create_network_topology(), use_container_width=True, key="topo_persist")
+    topo_placeholder.plotly_chart(create_network_topology(expand_topology=expand_network), use_container_width=True, key="topo_persist")
     gantt_placeholder.plotly_chart(draw_gantt_chart(), use_container_width=True, key="gantt_persist")
 
     # Restore metrics
